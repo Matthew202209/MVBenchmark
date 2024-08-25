@@ -10,7 +10,7 @@ class BenchmarkDataset(Dataset):
         self.tokenizer = tokenizer
 
     def _load_corpus(self):
-        corpus_file = r"{}/{}".format(self.config.corpus_dir, self.config.dataset)
+        corpus_file = r"{}/{}.jsonl".format(self.config.corpus_dir, self.config.dataset)
         num_lines = sum(1 for i in open(corpus_file, 'rb'))
         with open(corpus_file, encoding='utf-8') as fIn:
             for line in tqdm(fIn, total=num_lines):
@@ -45,7 +45,6 @@ class BenchmarkDataset(Dataset):
             return_attention_mask=True,
         )
         encoded_psg.data["corpus_ids"] = [item]
-
         return encoded_psg
 
 

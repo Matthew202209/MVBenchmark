@@ -1,6 +1,7 @@
 import copy
 import math
 from typing import List, Dict, Any
+from collections import OrderedDict
 
 import torch
 from torch.utils.data.distributed import DistributedSampler
@@ -157,3 +158,12 @@ class ScriptMultiEncoder(torch.nn.Module):
                 self.linear.weight.data[i] * encoder(model_inputs)
             )  # weighted concatenation
         return torch.cat(embeddings_list, dim=1)  # n_enc * d
+
+def process_check_point(checkpoint_dict):
+    new_checkpoint_dict = OrderedDict()
+    for key, value in checkpoint_dict.items():
+        new_key = "transformer." + key
+        # if new_key == r"transformer.bert.embeddings.position_ids":
+        #     continue
+        new_checkpoint_dict[new_key] = value
+    return new_checkpoint_dict
