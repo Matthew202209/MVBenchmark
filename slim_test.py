@@ -5,7 +5,7 @@ from models.SLIM.slim_index import SlimIndex
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--corpus_file", type=str, default=r"./")
-    parser.add_argument("--dataset", type=str, default=r"nfcorpus")
+    parser.add_argument("--dataset", type=str, default=r"lotte_pooled_dev")
     parser.add_argument("--data_dir", type=str, default=r"/home/chunming/projects/Mutivector/learn/plaidrepro/jsonl_data")
     parser.add_argument("--ctx_embeddings_dir", type=str, default=r"./index")
     parser.add_argument("--transformer_model_dir", type=str, default=r"./checkpoints/bert-base-uncased")
