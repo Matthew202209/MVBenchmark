@@ -17,7 +17,7 @@ class RunSettings:
 
     overwrite: bool = DefaultVal(False)
 
-    root: str = DefaultVal(os.path.join(os.getcwd(), 'experiments'))
+    root: str = DefaultVal(os.path.join(os.getcwd(), 'index'))
     experiment: str = DefaultVal('default')
 
     index_root: str = DefaultVal(None)
@@ -49,7 +49,7 @@ class RunSettings:
 
     @property
     def index_root_(self):
-        return self.index_root or os.path.join(self.root, self.experiment, 'indexes/')
+        return self.index_root or os.path.join(self.root, self.experiment)
 
     @property
     def script_name_(self):
