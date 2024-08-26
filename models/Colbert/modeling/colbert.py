@@ -1,7 +1,7 @@
-from colbert.infra.config.config import ColBERTConfig
-from colbert.search.strided_tensor import StridedTensor
-from colbert.utils.utils import print_message, flatten
-from colbert.modeling.base_colbert import BaseColBERT
+from models.Colbert.infra.config.config import ColBERTConfig
+from models.Colbert.search.strided_tensor import StridedTensor
+from models.Colbert.utils.utils import print_message, flatten
+from models.Colbert.modeling.base_colbert import BaseColBERT
 
 import torch
 import string

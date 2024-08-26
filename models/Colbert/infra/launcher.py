@@ -11,12 +11,12 @@ try:
 except RuntimeError:
     pass
 
-import colbert.utils.distributed as distributed
+import models.Colbert.utils.distributed as distributed
 
-from colbert.infra.run import Run
-from colbert.infra.config import BaseConfig, RunConfig, RunSettings
+from models.Colbert.infra.run import Run
+from models.Colbert.infra.config import BaseConfig, RunConfig, RunSettings
 
-from colbert.utils.utils import print_message
+from models.Colbert.utils.utils import print_message
 
 
 class Launcher:

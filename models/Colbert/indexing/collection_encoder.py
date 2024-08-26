@@ -1,7 +1,7 @@
 import torch
 
-from colbert.infra.run import Run
-from colbert.utils.utils import print_message, batch
+from models.Colbert.infra.run import Run
+from models.Colbert.utils.utils import print_message, batch
 
 
 class CollectionEncoder():

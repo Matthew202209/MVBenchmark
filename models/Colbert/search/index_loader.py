@@ -4,10 +4,10 @@ import torch
 import numpy as np
 import tqdm
 
-from colbert.utils.utils import lengths2offsets, print_message, dotdict, flatten
-from colbert.indexing.codecs.residual import ResidualCodec
-from colbert.indexing.utils import optimize_ivf
-from colbert.search.strided_tensor import StridedTensor
+from models.Colbert.utils.utils import lengths2offsets, print_message, dotdict, flatten
+from models.Colbert.indexing.codecs.residual import ResidualCodec
+from models.Colbert.indexing.utils import optimize_ivf
+from models.Colbert.search.strided_tensor import StridedTensor
 
 
 class IndexLoader:

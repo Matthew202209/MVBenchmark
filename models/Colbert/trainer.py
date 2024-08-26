@@ -1,8 +1,8 @@
-from colbert.infra.run import Run
-from colbert.infra.launcher import Launcher
-from colbert.infra.config import ColBERTConfig, RunConfig
+from models.Colbert.infra.run import Run
+from models.Colbert.infra.launcher import Launcher
+from models.Colbert.infra.config import ColBERTConfig, RunConfig
 
-from colbert.training.training import train
+from models.Colbert.training.training import train
 
 
 class Trainer:

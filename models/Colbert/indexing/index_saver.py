@@ -5,9 +5,9 @@ import threading
 
 from contextlib import contextmanager
 
-from colbert.indexing.codecs.residual import ResidualCodec
+from models.Colbert.indexing.codecs.residual import ResidualCodec
 
-from colbert.utils.utils import print_message
+from models.Colbert.utils.utils import print_message
 
 
 class IndexSaver():

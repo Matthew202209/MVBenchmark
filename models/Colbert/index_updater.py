@@ -4,22 +4,22 @@ import torch
 import numpy as np
 import tqdm
 
-from colbert.search.index_loader import IndexLoader
-from colbert.indexing.index_saver import IndexSaver
-from colbert.indexing.collection_encoder import CollectionEncoder
+from models.Colbert.search.index_loader import IndexLoader
+from models.Colbert.indexing.index_saver import IndexSaver
+from models.Colbert.indexing.collection_encoder import CollectionEncoder
 
-from colbert.utils.utils import lengths2offsets, print_message, dotdict, flatten
-from colbert.indexing.codecs.residual import ResidualCodec
-from colbert.indexing.utils import optimize_ivf
-from colbert.search.strided_tensor import StridedTensor
-from colbert.modeling.checkpoint import Checkpoint
-from colbert.utils.utils import print_message, batch
-from colbert.data import Collection
-from colbert.indexing.codecs.residual_embeddings import ResidualEmbeddings
-from colbert.indexing.codecs.residual_embeddings_strided import (
+from models.Colbert.utils.utils import lengths2offsets, print_message, dotdict, flatten
+from models.Colbert.indexing.codecs.residual import ResidualCodec
+from models.Colbert.indexing.utils import optimize_ivf
+from models.Colbert.search.strided_tensor import StridedTensor
+from models.Colbert.modeling.checkpoint import Checkpoint
+from models.Colbert.utils.utils import print_message, batch
+from models.Colbert.data import Collection
+from models.Colbert.indexing.codecs.residual_embeddings import ResidualEmbeddings
+from models.Colbert.indexing.codecs.residual_embeddings_strided import (
     ResidualEmbeddingsStrided,
 )
-from colbert.indexing.utils import optimize_ivf
+from models.Colbert.indexing.utils import optimize_ivf
 
 # For testing writing into new chunks, can set DEFAULT_CHUNKSIZE smaller (e.g. 1 or 2)
 DEFAULT_CHUNKSIZE = 25000

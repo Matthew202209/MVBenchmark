@@ -1,10 +1,10 @@
 import os
 import atexit
 
-from colbert.utils.utils import create_directory, print_message, timestamp
+from models.Colbert.utils.utils import create_directory, print_message, timestamp
 from contextlib import contextmanager
 
-from colbert.infra.config import RunConfig
+from models.Colbert.infra.config import RunConfig
 
 
 class Run(object):

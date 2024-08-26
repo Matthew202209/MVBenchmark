@@ -2,9 +2,9 @@ import os
 import torch
 
 # from colbert.utils.runs import Run
-from colbert.utils.utils import print_message, save_checkpoint
-from colbert.parameters import SAVED_CHECKPOINTS
-from colbert.infra.run import Run
+from models.Colbert.utils.utils import print_message, save_checkpoint
+from models.Colbert.parameters import SAVED_CHECKPOINTS
+from models.Colbert.infra.run import Run
 
 
 def print_progress(scores):

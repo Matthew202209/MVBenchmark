@@ -6,15 +6,15 @@ import perf_event
 from tqdm import tqdm
 from typing import Union
 
-from colbert.data import Collection, Queries, Ranking
+from models.Colbert.data import Collection, Queries, Ranking
 
-from colbert.modeling.checkpoint import Checkpoint
-from colbert.search.index_storage import IndexScorer
+from models.Colbert.modeling.checkpoint import Checkpoint
+from models.Colbert.search.index_storage import IndexScorer
 
-from colbert.infra.provenance import Provenance
-from colbert.infra.run import Run
-from colbert.infra.config import ColBERTConfig, RunConfig
-from colbert.infra.launcher import print_memory_stats
+from models.Colbert.infra.provenance import Provenance
+from models.Colbert.infra.run import Run
+from models.Colbert.infra.config import ColBERTConfig, RunConfig
+from models.Colbert.infra.launcher import print_memory_stats
 
 import time
 

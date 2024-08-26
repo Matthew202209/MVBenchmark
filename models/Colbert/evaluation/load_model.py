@@ -5,9 +5,9 @@ import random
 
 from collections import defaultdict, OrderedDict
 
-from colbert.parameters import DEVICE
-from colbert.modeling.colbert import ColBERT
-from colbert.utils.utils import print_message, load_checkpoint
+from models.Colbert.parameters import DEVICE
+from models.Colbert.modeling.colbert import ColBERT
+from models.Colbert.utils.utils import print_message, load_checkpoint
 
 
 def load_model(args, do_print=True):

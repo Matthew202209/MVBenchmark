@@ -1,10 +1,10 @@
-from colbert.infra.run import Run
+from models.Colbert.infra.run import Run
 import os
 import ujson
 
-from colbert.utils.utils import print_message
-from colbert.infra.provenance import Provenance
-from utility.utils.save_metadata import get_metadata_only
+from models.Colbert.utils.utils import print_message
+from models.Colbert.infra.provenance import Provenance
+from models.Colbert.utility.utils.save_metadata import get_metadata_only
 
 
 class Examples:

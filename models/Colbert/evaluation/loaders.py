@@ -5,11 +5,11 @@ import random
 
 from collections import defaultdict, OrderedDict
 
-from colbert.parameters import DEVICE
-from colbert.modeling.colbert import ColBERT
-from colbert.utils.utils import print_message, load_checkpoint
-from colbert.evaluation.load_model import load_model
-from colbert.utils.runs import Run
+from models.Colbert.parameters import DEVICE
+from models.Colbert.modeling.colbert import ColBERT
+from models.Colbert.utils.utils import print_message, load_checkpoint
+from models.Colbert.evaluation.load_model import load_model
+from models.Colbert.utils.runs import Run
 
 
 def load_queries(queries_path):

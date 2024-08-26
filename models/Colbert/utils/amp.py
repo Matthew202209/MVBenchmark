@@ -1,7 +1,7 @@
 import torch
 
 from contextlib import contextmanager
-from colbert.utils.utils import NullContextManager
+from models.Colbert.utils.utils import NullContextManager
 
 
 class MixedPrecisionManager():

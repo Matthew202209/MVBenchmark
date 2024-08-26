@@ -1,11 +1,11 @@
 import os
 import tqdm
 import ujson
-from colbert.infra.provenance import Provenance
+from models.Colbert.infra.provenance import Provenance
 
-from colbert.infra.run import Run
-from colbert.utils.utils import print_message, groupby_first_item
-from utility.utils.save_metadata import get_metadata_only
+from models.Colbert.infra.run import Run
+from models.Colbert.utils.utils import print_message, groupby_first_item
+from models.Colbert.utility.utils.save_metadata import get_metadata_only
 
 
 def numericize(v):

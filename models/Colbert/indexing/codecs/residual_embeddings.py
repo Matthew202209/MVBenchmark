@@ -3,8 +3,8 @@ import torch
 import ujson
 import tqdm
 
-from colbert.indexing.codecs.residual_embeddings_strided import ResidualEmbeddingsStrided
-from colbert.utils.utils import print_message
+from models.Colbert.indexing.codecs.residual_embeddings_strided import ResidualEmbeddingsStrided
+from models.Colbert.utils.utils import print_message
 
 
 class ResidualEmbeddings:

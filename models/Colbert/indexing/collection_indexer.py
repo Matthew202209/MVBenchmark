@@ -11,21 +11,21 @@ except ImportError as e:
 
 import numpy as np
 import torch.multiprocessing as mp
-from colbert.infra.config.config import ColBERTConfig
+from models.Colbert.infra.config.config import ColBERTConfig
 
-import colbert.utils.distributed as distributed
+import models.Colbert.utils.distributed as distributed
 
-from colbert.infra.run import Run
-from colbert.infra.launcher import print_memory_stats
-from colbert.modeling.checkpoint import Checkpoint
-from colbert.data.collection import Collection
+from models.Colbert.infra.run import Run
+from models.Colbert.infra.launcher import print_memory_stats
+from models.Colbert.modeling.checkpoint import Checkpoint
+from models.Colbert.data.collection import Collection
 
-from colbert.indexing.collection_encoder import CollectionEncoder
-from colbert.indexing.index_saver import IndexSaver
-from colbert.indexing.utils import optimize_ivf
-from colbert.utils.utils import flatten, print_message
+from models.Colbert.indexing.collection_encoder import CollectionEncoder
+from models.Colbert.indexing.index_saver import IndexSaver
+from models.Colbert.indexing.utils import optimize_ivf
+from models.Colbert.utils.utils import flatten, print_message
 
-from colbert.indexing.codecs.residual import ResidualCodec
+from models.Colbert.indexing.codecs.residual import ResidualCodec
 
 
 def encode(config, collection, shared_lists, shared_queues):

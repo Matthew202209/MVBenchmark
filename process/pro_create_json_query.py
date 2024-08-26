@@ -12,6 +12,7 @@ QUERY_DIR = {
 
 
 def create_and_save_json_query(dataset, save_path):
+    save_path = r"{}/{}.json".format(save_path, dataset)
     dir = QUERY_DIR[dataset]
     dataset = ir_datasets.load(dir)
     queries = {q.query_id: q.text for q in dataset.queries_iter()}
@@ -20,8 +21,9 @@ def create_and_save_json_query(dataset, save_path):
 
 
 
-def create_and_save_json_label(dataset, save_path):
-    dir = QUERY_DIR[dataset]
+def create_and_save_json_label(dataset_name, save_path):
+    save_path = r"{}/{}.csv".format(save_path, dataset_name)
+    dir = QUERY_DIR[dataset_name]
     dataset = ir_datasets.load(dir)
     qrels_list = []
     for qrel in dataset.qrels:
@@ -31,7 +33,7 @@ def create_and_save_json_label(dataset, save_path):
 
         qrels_list.append(qrels_dict)
     qrels = pd.DataFrame(qrels_list)
-    qrels.to_csv(r"{}/{}.csv".format(save_path, dataset), index=False)
+    qrels.to_csv(save_path, index=False)
 
 def create_json_corpus():
     pass
@@ -41,8 +43,8 @@ def create_json():
 if __name__ == '__main__':
     root = r"../data"
     dataset = 'nfcorpus'
-    label_save_path = r"../data/label".format(root)
-    query_save_path = r"../data/query".format(root)
+    label_save_path = r"/home/chunming/Projects/Multivector/MVBenchmark/data/label".format(root)
+    query_save_path = r"/home/chunming/Projects/Multivector/MVBenchmark/data/query".format(root)
 
     if not os.path.exists(label_save_path):
         os.mkdir(label_save_path)

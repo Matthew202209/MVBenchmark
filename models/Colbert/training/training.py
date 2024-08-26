@@ -5,18 +5,18 @@ import torch.nn as nn
 import numpy as np
 
 from transformers import AdamW, get_linear_schedule_with_warmup
-from colbert.infra import ColBERTConfig
-from colbert.training.rerank_batcher import RerankBatcher
+from models.Colbert.infra import ColBERTConfig
+from models.Colbert.training.rerank_batcher import RerankBatcher
 
-from colbert.utils.amp import MixedPrecisionManager
-from colbert.training.lazy_batcher import LazyBatcher
-from colbert.parameters import DEVICE
+from models.Colbert.utils.amp import MixedPrecisionManager
+from models.Colbert.training.lazy_batcher import LazyBatcher
+from models.Colbert.parameters import DEVICE
 
-from colbert.modeling.colbert import ColBERT
-from colbert.modeling.reranker.electra import ElectraReranker
+from models.Colbert.modeling.colbert import ColBERT
+from models.Colbert.modeling.reranker.electra import ElectraReranker
 
-from colbert.utils.utils import print_message
-from colbert.training.utils import print_progress, manage_checkpoints
+from models.Colbert.utils.utils import print_message
+from models.Colbert.training.utils import print_progress, manage_checkpoints
 
 
 

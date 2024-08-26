@@ -2,8 +2,8 @@ import os
 import torch
 import tqdm
 
-from colbert.indexing.loaders import load_doclens
-from colbert.utils.utils import print_message, flatten
+from models.Colbert.indexing.loaders import load_doclens
+from models.Colbert.utils.utils import print_message, flatten
 
 def optimize_ivf(orig_ivf, orig_ivf_lengths, index_path):
     print_message("#> Optimizing IVF to store map from centroids to list of pids..")

@@ -1,9 +1,9 @@
 import torch
 
-from colbert.modeling.hf_colbert import class_factory
-from colbert.infra import ColBERTConfig
-from colbert.modeling.tokenization.utils import _split_into_batches
-from colbert.utils.utils import batch
+from models.Colbert.modeling.hf_colbert import class_factory
+from models.Colbert.infra import ColBERTConfig
+from models.Colbert.modeling.tokenization.utils import _split_into_batches
+from models.Colbert.utils.utils import batch
 
 
 class QueryTokenizer():

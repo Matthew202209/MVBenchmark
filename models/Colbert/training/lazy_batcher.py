@@ -2,14 +2,14 @@ import os
 import ujson
 
 from functools import partial
-from colbert.infra.config.config import ColBERTConfig
-from colbert.utils.utils import print_message, zipstar
-from colbert.modeling.tokenization import QueryTokenizer, DocTokenizer, tensorize_triples
-from colbert.evaluation.loaders import load_collection
+from models.Colbert.infra.config.config import ColBERTConfig
+from models.Colbert.utils.utils import print_message, zipstar
+from models.Colbert.modeling.tokenization import QueryTokenizer, DocTokenizer, tensorize_triples
+from models.Colbert.evaluation.loaders import load_collection
 
-from colbert.data.collection import Collection
-from colbert.data.queries import Queries
-from colbert.data.examples import Examples
+from models.Colbert.data.collection import Collection
+from models.Colbert.data.queries import Queries
+from models.Colbert.data.examples import Examples
 
 # from colbert.utils.runs import Run
 

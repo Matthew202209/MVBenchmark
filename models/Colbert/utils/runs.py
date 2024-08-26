@@ -5,11 +5,11 @@ import __main__
 import traceback
 # import mlflow
 
-import colbert.utils.distributed as distributed
+import models.Colbert.utils.distributed as distributed
 
 from contextlib import contextmanager
-from colbert.utils.logging import Logger
-from colbert.utils.utils import timestamp, create_directory, print_message
+from models.Colbert.utils.logging import Logger
+from models.Colbert.utils.utils import timestamp, create_directory, print_message
 
 
 class _RunManager():

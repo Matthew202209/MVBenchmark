@@ -2,11 +2,11 @@ import os
 import torch
 import sys
 
-from colbert.utils.utils import torch_load_dnn
+from models.Colbert.utils.utils import torch_load_dnn
 
 from transformers import AutoTokenizer
-from colbert.modeling.hf_colbert import class_factory
-from colbert.infra.config import ColBERTConfig
+from models.Colbert.modeling.hf_colbert import class_factory
+from models.Colbert.infra.config import ColBERTConfig
 
 
 class BaseColBERT(torch.nn.Module):
@@ -66,8 +66,8 @@ if __name__ == '__main__':
     import random
     import numpy as np
 
-    from colbert.infra.run import Run
-    from colbert.infra.config import RunConfig
+    from models.Colbert.infra.run import Run
+    from models.Colbert.infra.config import RunConfig
 
     random.seed(12345)
     np.random.seed(12345)

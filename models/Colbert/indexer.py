@@ -3,13 +3,13 @@ import time
 
 import torch.multiprocessing as mp
 
-from colbert.infra.run import Run
-from colbert.infra.config import ColBERTConfig, RunConfig
-from colbert.infra.launcher import Launcher
+from models.Colbert.infra.run import Run
+from models.Colbert.infra.config import ColBERTConfig, RunConfig
+from models.Colbert.infra.launcher import Launcher
 
-from colbert.utils.utils import create_directory, print_message
+from models.Colbert.utils.utils import create_directory, print_message
 
-from colbert.indexing.collection_indexer import encode
+from models.Colbert.indexing.collection_indexer import encode
 
 
 class Indexer:

@@ -1,7 +1,7 @@
 # from colbert.indexing.codecs.residual import ResidualCodec
-import colbert.indexing.codecs.residual_embeddings as residual_embeddings
+import models.Colbert.indexing.codecs.residual_embeddings as residual_embeddings
 
-from colbert.search.strided_tensor import StridedTensor
+from models.Colbert.search.strided_tensor import StridedTensor
 
 """
 import line_profiler

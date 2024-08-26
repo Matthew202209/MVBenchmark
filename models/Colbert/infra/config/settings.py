@@ -3,7 +3,7 @@ import torch
 
 import __main__
 from dataclasses import dataclass
-from colbert.utils.utils import timestamp
+from models.Colbert.utils.utils import timestamp
 
 from .core_config import DefaultVal
 

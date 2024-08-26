@@ -3,7 +3,7 @@ import random
 
 import numpy as np
 
-from colbert.utils.utils import flatten
+from models.Colbert.utils.utils import flatten
 
 
 """

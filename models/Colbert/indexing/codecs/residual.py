@@ -7,9 +7,9 @@ import torch
 import numpy as np
 from itertools import product
 
-from colbert.infra.config import ColBERTConfig
-from colbert.indexing.codecs.residual_embeddings import ResidualEmbeddings
-from colbert.utils.utils import print_message
+from models.Colbert.infra.config import ColBERTConfig
+from models.Colbert.indexing.codecs.residual_embeddings import ResidualEmbeddings
+from models.Colbert.utils.utils import print_message
 
 import pathlib
 from torch.utils.cpp_extension import load

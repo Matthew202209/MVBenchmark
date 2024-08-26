@@ -2,13 +2,13 @@ import os
 import ujson
 
 from functools import partial
-from colbert.infra.config.config import ColBERTConfig
-from colbert.utils.utils import flatten, print_message, zipstar
-from colbert.modeling.reranker.tokenizer import RerankerTokenizer
+from models.Colbert.infra.config.config import ColBERTConfig
+from models.Colbert.utils.utils import flatten, print_message, zipstar
+from models.Colbert.modeling.reranker.tokenizer import RerankerTokenizer
 
-from colbert.data.collection import Collection
-from colbert.data.queries import Queries
-from colbert.data.examples import Examples
+from models.Colbert.data.collection import Collection
+from models.Colbert.data.queries import Queries
+from models.Colbert.data.examples import Examples
 
 # from colbert.utils.runs import Run
 

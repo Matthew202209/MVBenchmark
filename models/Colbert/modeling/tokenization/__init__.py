@@ -1,3 +1,3 @@
-from colbert.modeling.tokenization.query_tokenization import *
-from colbert.modeling.tokenization.doc_tokenization import *
-from colbert.modeling.tokenization.utils import tensorize_triples
+from models.Colbert.modeling.tokenization.query_tokenization import *
+from models.Colbert.modeling.tokenization.doc_tokenization import *
+from models.Colbert.modeling.tokenization.utils import tensorize_triples

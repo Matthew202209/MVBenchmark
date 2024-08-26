@@ -7,7 +7,7 @@ from transformers import RobertaModel, RobertaPreTrainedModel
 from transformers import XLMRobertaModel, XLMRobertaConfig
 from transformers import ElectraModel, ElectraPreTrainedModel
 from transformers import DebertaV2Model, DebertaV2PreTrainedModel
-from colbert.utils.utils import torch_load_dnn
+from models.Colbert.utils.utils import torch_load_dnn
 
 class XLMRobertaPreTrainedModel(RobertaPreTrainedModel):
     """

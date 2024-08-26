@@ -1,16 +1,16 @@
 from time import time
 import torch
 
-from colbert.utils.utils import flatten, print_message
+from models.Colbert.utils.utils import flatten, print_message
 
-from colbert.indexing.loaders import load_doclens
-from colbert.indexing.codecs.residual_embeddings_strided import ResidualEmbeddingsStrided
+from models.Colbert.indexing.loaders import load_doclens
+from models.Colbert.indexing.codecs.residual_embeddings_strided import ResidualEmbeddingsStrided
 
-from colbert.search.strided_tensor import StridedTensor
-from colbert.search.candidate_generation import CandidateGeneration
+from models.Colbert.search.strided_tensor import StridedTensor
+from models.Colbert.search.candidate_generation import CandidateGeneration
 
 from .index_loader import IndexLoader
-from colbert.modeling.colbert import colbert_score, colbert_score_packed, colbert_score_reduce
+from models.Colbert.modeling.colbert import colbert_score, colbert_score_packed, colbert_score_reduce
 
 from math import ceil
 

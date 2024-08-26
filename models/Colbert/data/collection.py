@@ -7,8 +7,8 @@
 import os
 import itertools
 
-from colbert.evaluation.loaders import load_collection
-from colbert.infra.run import Run
+from models.Colbert.evaluation.loaders import load_collection
+from models.Colbert.infra.run import Run
 
 
 class Collection:
