@@ -46,7 +46,7 @@ if __name__ == '__main__':
 
     with Run().context(RunConfig(experiment='Colbert')):
 
-        searcher = Searcher(checkpoint=checkpoint,index=index_name, is_colbertv2=True)
+        searcher = Searcher(checkpoint=checkpoint,index=index_name, is_colbertv2=False)
 
 
     new2old = create_new_2_old_list(corpus_file)
