@@ -51,30 +51,34 @@ if __name__ == '__main__':
 
     new2old = create_new_2_old_list(corpus_file)
     eval_list = []
-    for nprobe in [1, 2, 3, 4, 5]:
-        for ncandidates in [2 ** 8, 2 ** 9, 2 ** 10]:
-            path = f'{rank_path}/nprobe-{nprobe}.ncandidates-{ncandidates}.run.gz'
-            searcher.config.nprobe = nprobe
-            searcher.config.ncandidates = ncandidates
-            results, perf_df = searcher.search_vanilla_colbertv2_Q(queries, k=topk)
-            res_dict = results.todict()
-            perf_df.to_csv(r"{}/nprobe-{}.ncandidates-{}.csv".format(perf_path,
-                                                                     nprobe,
-                                                                     ncandidates), index=False)
-            with gzip.open(path, 'wt') as fout:
-                for qid in res_dict.keys():
-                    for did, rank, score in res_dict[qid]:
-                        fout.write(f'{qid} 0 {did} {rank} {score} run\n')
-            del results, perf_df
-            ranks_results_pd = pd.DataFrame(list(ir_measures.read_trec_run(path)))
-            for i, r in ranks_results_pd.iterrows():
-                ranks_results_pd.at[i, "doc_id"] = new2old[int(r["doc_id"])]
-            eval_results = ir_measures.calc_aggregate(measure, qrels, ranks_results_pd)
-            eval_results["parameter"] = (nprobe, ncandidates)
-            eval_results["nprobe"] = nprobe
-            eval_results["ncandidates"] = ncandidates
-            eval_results["index_memory"] = searcher.index_memory
-            eval_list.append(eval_results)
+    for ncells in [2, 3, 4]:
+        for centroid_score_threshold in [0.3, 0.4, 0.5]:
+            for ndocs in [2 ** 9, 2 ** 10, 2 ** 11]:
+                path = f'{rank_path}/plaid.ncells-{ncells}.cst-{centroid_score_threshold}.ndocs-{ndocs}.run.gz'
+                searcher.config.ncells = ncells
+                searcher.config.centroid_score_threshold = centroid_score_threshold
+                searcher.config.ndocs = ndocs
+                results, perf_df = searcher.search_plaid_Q(queries, k=topk)
+                res_dict = results.todict()
+                perf_df.to_csv(r"{}/plaid.ncells-{}.cst-{}.ndocs-{}_perf.csv".format(perf_path,
+                                                                                     ncells,
+                                                                                     centroid_score_threshold,
+                                                                                     ndocs), index=False)
+                with gzip.open(path, 'wt') as fout:
+                    for qid in res_dict.keys():
+                        for did, rank, score in res_dict[qid]:
+                            fout.write(f'{qid} 0 {did} {rank} {score} run\n')
+                del results, perf_df
+                ranks_results_pd = pd.DataFrame(list(ir_measures.read_trec_run(path)))
+                for i, r in ranks_results_pd.iterrows():
+                    ranks_results_pd.at[i, "doc_id"] = new2old[int(r["doc_id"])]
+                eval_results = ir_measures.calc_aggregate(measure, qrels, ranks_results_pd)
+                eval_results["parameter"] = (ncells, centroid_score_threshold, ndocs)
+                eval_results["ncells"] = ncells
+                eval_results["centroid_score_threshold"] = centroid_score_threshold
+                eval_results["ndocs"] = ndocs
+                eval_results["index_memory"] = searcher.index_memory
+                eval_list.append(eval_results)
 
     eval_df = pd.DataFrame(eval_list)
     eval_df.to_csv(r"{}/eval.csv".format(eval_results_dir), index=False)
