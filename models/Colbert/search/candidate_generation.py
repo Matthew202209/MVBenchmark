@@ -88,7 +88,7 @@ class CandidateGeneration:
         nprobe = config.nprobe
         ncandidates = config.ncandidates
 
-        assert isinstance(self.ivf, StridedTensor)
+        # assert isinstance(self.ivf, StridedTensor)
         Q = Q.squeeze(0)
         if self.use_gpu:
             Q = Q.cuda().half()

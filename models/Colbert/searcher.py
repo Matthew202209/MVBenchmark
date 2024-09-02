@@ -1,6 +1,8 @@
 import numpy as np
 import pandas as pd
 import os
+
+import psutil
 import torch
 import perf_event
 from tqdm import tqdm
@@ -18,15 +20,18 @@ from models.Colbert.infra.launcher import print_memory_stats
 
 import time
 
+from utils.utils_memory import memory_usage
+
 TextQueries = Union[str, 'list[str]', 'dict[int, str]', Queries]
 columns = ["cycles", "instructions",
            "L1_misses", "LLC_misses",
            "L1_accesses", "LLC_accesses",
            "branch_misses", "task_clock"]
 
+
+
 class Searcher:
-    def __init__(self, index, checkpoint=None, collection=None, config=None):
-        print_memory_stats()
+    def __init__(self, index, checkpoint=None, collection=None, config=None, is_colbertv2=False):
 
         initial_config = ColBERTConfig.from_existing(config, Run().config)
 
@@ -45,9 +50,12 @@ class Searcher:
         use_gpu = False
         if use_gpu:
             self.checkpoint = self.checkpoint.cuda()
-        self.ranker = IndexScorer(self.index, use_gpu)
 
-        print_memory_stats()
+        before_memory = memory_usage()
+        self.ranker = IndexScorer(self.index, use_gpu, is_colbertv2=is_colbertv2)
+        after_memory = memory_usage()
+        self.index_memory = after_memory - before_memory
+
 
     def configure(self, **kw_args):
         self.config.configure(**kw_args)

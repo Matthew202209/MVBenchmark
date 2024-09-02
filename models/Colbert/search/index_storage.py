@@ -20,8 +20,8 @@ from torch.utils.cpp_extension import load
 
 
 class IndexScorer(IndexLoader, CandidateGeneration):
-    def __init__(self, index_path, use_gpu=True):
-        super().__init__(index_path=index_path, use_gpu=use_gpu)
+    def __init__(self, index_path, use_gpu=True, is_colbertv2 = False):
+        super().__init__(index_path=index_path, use_gpu=use_gpu, is_colbertv2=is_colbertv2)
 
         IndexScorer.try_load_torch_extensions(use_gpu)
 
