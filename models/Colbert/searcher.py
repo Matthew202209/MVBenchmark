@@ -323,6 +323,49 @@ class LadrSearcher(Searcher):
         initial_res = dict(iter(self.first_pass(df_queries).groupby('qid')))
         return self._search_all_Q(queries, Q, k, filter_fn=filter_fn, initial_res=initial_res)
 
+    def search_ladr_Q(self,queries: TextQueries, k=10, filter_fn=None, initial_res=None, full_length_search=False):
+        queries = Queries.cast(queries)
+        df_queries = pd.DataFrame(queries.items(), columns=['qid', 'query'])
+        initial_res = dict(iter(self.first_pass(df_queries).groupby('qid')))
+        queries_ = list(queries.values())
+        perf = perf_event.PerfEvent()
+        qids = list(queries.keys())
+        all_scored_pids = []
+        all_perf = []
+        for query_idx, q in tqdm(enumerate(queries_)):
+            perf.startCounters()
+            Q = self.encode(q, full_length_search=full_length_search)
+            results_zip = zip(*self.dense_search(Q, k, filter_fn=filter_fn,
+                                initial_res=initial_res.get(qids[query_idx], pd.DataFrame(columns=['docno']))))
+
+            perf.stopCounters()
+            cycles = perf.getCounter("cycles")
+            instructions = perf.getCounter("instructions")
+            L1_misses = perf.getCounter("L1-misses")
+            LLC_misses = perf.getCounter("LLC-misses")
+            L1_accesses = perf.getCounter("L1-accesses")
+            LLC_accesses = perf.getCounter("LLC-accesses")
+            branch_misses = perf.getCounter("branch-misses")
+            task_clock = perf.getCounter("task-clock")
+            all_perf.append([cycles, instructions,
+                             L1_misses, LLC_misses,
+                             L1_accesses, LLC_accesses,
+                             branch_misses, task_clock])
+            all_scored_pids.append(list(results_zip))
+            all_perf.append([cycles, instructions,
+                             L1_misses, LLC_misses,
+                             L1_accesses, LLC_accesses,
+                             branch_misses, task_clock])
+            all_scored_pids.append(list(results_zip))
+        perf_df = pd.DataFrame(all_perf, columns=columns)
+        data = {qid: val for qid, val in zip(queries.keys(), all_scored_pids)}
+        provenance = Provenance()
+        provenance.source = 'Searcher::search_all'
+        provenance.queries = queries.provenance()
+        provenance.config = self.config.export()
+        provenance.k = k
+        return Ranking(data=data, provenance=provenance), perf_df
+
     def _search_all_Q(self, queries, Q, k, filter_fn=None, initial_res=None):
         perf = perf_event.PerfEvent()
         qids = list(queries.keys())

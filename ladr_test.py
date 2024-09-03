@@ -4,13 +4,15 @@ import gzip
 
 import ir_measures
 from ir_measures import *
+from pyterrier_adaptive import CorpusGraph
+from pyterrier_pisa import PisaIndex
 from tqdm import tqdm
 
 import pandas as pd
 import torch
 from models.Colbert.infra import Run, RunConfig, ColBERTConfig
 from models.Colbert.data import Queries, Collection
-from models.Colbert import Indexer, Searcher
+from models.Colbert import Indexer, Searcher, LadrSearcher
 from time import time
 import ir_datasets
 
@@ -44,26 +46,35 @@ if __name__ == '__main__':
         queries = json.load(f)
     qrels = pd.read_csv(r"{}/{}.csv".format(label_json_dir, dataset))
 
-    with Run().context(RunConfig(experiment='Colbert')):
+    before_memory = memory_usage()
+    index = PisaIndex(f'ladr_intermediate/{dataset}/{dataset}-n-pisa')
+    bm25 = index.bm25(num_results=1000)  # number of nearest neighbours
+    graph = CorpusGraph.load(
+        f'/home/chunming/projects/Mutivector/learn/plaidrepro/ladr_intermediate/{dataset}/{dataset}.gbm25.128')
+    after_memory = memory_usage()
+    sparse_index_memory = after_memory - before_memory
 
-        searcher = Searcher(checkpoint=checkpoint,index=index_name, is_colbertv2=False)
+
+    with Run().context(RunConfig(experiment='Colbert')):
+        searcher = LadrSearcher(index=index_name, first_pass=bm25, corpus_graph=graph, proactive_steps=0)
 
 
     new2old = create_new_2_old_list(corpus_file)
     eval_list = []
-    for ncells in [1, 2, 3, 4, 5]:
-        for centroid_score_threshold in [0.3, 0.4, 0.5]:
-            for ndocs in [2 ** 8, 2 ** 9, 2 ** 10]:
-                path = f'{rank_path}/plaid.ncells-{ncells}.cst-{centroid_score_threshold}.ndocs-{ndocs}.run.gz'
-                searcher.config.ncells = ncells
-                searcher.config.centroid_score_threshold = centroid_score_threshold
-                searcher.config.ndocs = ndocs
-                results, perf_df = searcher.search_plaid_Q(queries, k=topk)
+    for num_results in [100, 500, 1000]:
+        for num_neighbours in [64, 128]:
+            for depth in [10, 20, 50]:
+                searcher.first_pass = index.bm25(num_results=num_results)
+                searcher.adaptive_depth = depth
+                searcher.graph = graph.to_limit_k(num_neighbours)
+                path = f'{rank_path}/ladr.num_results-{num_results}.num_neighbours-{num_neighbours}.depth-{depth}.run.gz'
+
+                results, perf_df = searcher.search_ladr_Q(queries, k=topk)
                 res_dict = results.todict()
-                perf_df.to_csv(r"{}/plaid.ncells-{}.cst-{}.ndocs-{}_perf.csv".format(perf_path,
-                                                                                     ncells,
-                                                                                     centroid_score_threshold,
-                                                                                     ndocs), index=False)
+                perf_df.to_csv(r"{}/ladr.num_results-{}.num_neighbours-{}.depth-{}_perf.csv".format(perf_path,
+                                                                                                    num_results,
+                                                                                                    num_neighbours,
+                                                                                                    depth), index=False)
                 with gzip.open(path, 'wt') as fout:
                     for qid in res_dict.keys():
                         for did, rank, score in res_dict[qid]:
@@ -73,11 +84,11 @@ if __name__ == '__main__':
                 for i, r in ranks_results_pd.iterrows():
                     ranks_results_pd.at[i, "doc_id"] = new2old[int(r["doc_id"])]
                 eval_results = ir_measures.calc_aggregate(measure, qrels, ranks_results_pd)
-                eval_results["parameter"] = (ncells, centroid_score_threshold, ndocs)
-                eval_results["ncells"] = ncells
-                eval_results["centroid_score_threshold"] = centroid_score_threshold
-                eval_results["ndocs"] = ndocs
-                eval_results["index_memory"] = searcher.index_memory
+                eval_results["parameter"] = (num_results, num_neighbours, depth)
+                eval_results["num_results"] = num_results
+                eval_results["num_neighbours"] = num_neighbours
+                eval_results["depth"] = depth
+                eval_results["index_memory"] = searcher.index_memory + sparse_index_memory
                 eval_list.append(eval_results)
 
     eval_df = pd.DataFrame(eval_list)
