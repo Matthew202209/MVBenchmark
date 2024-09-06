@@ -86,6 +86,43 @@ class Searcher:
 
         return self._search_all_Q(queries, Q, k, filter_fn=filter_fn)
 
+    def search_exhaustive_Q(self, queries: TextQueries, k=10, full_length_search=False):
+        queries = Queries.cast(queries)
+        queries_ = list(queries.values())
+        perf = perf_event.PerfEvent()
+        all_scored_pids = []
+        all_perf = []
+        for q in tqdm(queries_):
+            perf.startCounters()
+            Q = self.encode(q, full_length_search=full_length_search)
+            results_zip = zip(*self.ranker.exhaustive(self.config, Q, k))
+            perf.stopCounters()
+            cycles = perf.getCounter("cycles")
+            instructions = perf.getCounter("instructions")
+            L1_misses = perf.getCounter("L1-misses")
+            LLC_misses = perf.getCounter("LLC-misses")
+            L1_accesses = perf.getCounter("L1-accesses")
+            LLC_accesses = perf.getCounter("LLC-accesses")
+            branch_misses = perf.getCounter("branch-misses")
+            task_clock = perf.getCounter("task-clock")
+            all_perf.append([cycles, instructions,
+                             L1_misses, LLC_misses,
+                             L1_accesses, LLC_accesses,
+                             branch_misses, task_clock])
+
+            all_scored_pids.append(list(results_zip))
+
+        perf_df = pd.DataFrame(all_perf, columns=columns)
+        data = {qid: val for qid, val in zip(queries.keys(), all_scored_pids)}
+
+        provenance = Provenance()
+        provenance.source = 'Searcher::exhaustive'
+        provenance.queries = queries.provenance()
+        provenance.config = self.config.export()
+        provenance.k = k
+        return Ranking(data=data, provenance=provenance), perf_df
+
+
     def search_plaid_Q(self, queries: TextQueries, k=10, full_length_search=False):
         queries = Queries.cast(queries)
         queries_ = list(queries.values())
@@ -193,40 +230,40 @@ class Searcher:
             return Ranking(data=data, provenance=provenance), perf_df
 
 
-    def search_exhaustive_Q(self, queries: TextQueries, Q, k=10, filter_fn=None, full_length_search=False):
-        queries = Queries.cast(queries)
-        perf = perf_event.PerfEvent()
-        all_scored_pids = []
-        all_perf = []
-        for query_idx in tqdm(range(Q.size(0))):
-            perf.startCounters()
-            results_zip = zip(*self.ranker.exhaustive(self.config, Q[query_idx:query_idx + 1], k))
-            perf.stopCounters()
-            cycles = perf.getCounter("cycles")
-            instructions = perf.getCounter("instructions")
-            L1_misses = perf.getCounter("L1-misses")
-            LLC_misses = perf.getCounter("LLC-misses")
-            L1_accesses = perf.getCounter("L1-accesses")
-            LLC_accesses = perf.getCounter("LLC-accesses")
-            branch_misses = perf.getCounter("branch-misses")
-            task_clock = perf.getCounter("task-clock")
-            all_perf.append([cycles, instructions,
-                             L1_misses, LLC_misses,
-                             L1_accesses, LLC_accesses,
-                             branch_misses, task_clock])
-
-            all_scored_pids.append(list(results_zip))
-
-        perf_df = pd.DataFrame(all_perf, columns=columns)
-        data = {qid: val for qid, val in zip(queries.keys(), all_scored_pids)}
-
-        provenance = Provenance()
-        provenance.source = 'Searcher::exhaustive'
-        provenance.queries = queries.provenance()
-        provenance.config = self.config.export()
-        provenance.k = k
-
-        return Ranking(data=data, provenance=provenance), perf_df
+    # def search_exhaustive_Q(self, queries: TextQueries, Q, k=10, filter_fn=None, full_length_search=False):
+    #     queries = Queries.cast(queries)
+    #     perf = perf_event.PerfEvent()
+    #     all_scored_pids = []
+    #     all_perf = []
+    #     for query_idx in tqdm(range(Q.size(0))):
+    #         perf.startCounters()
+    #         results_zip = zip(*self.ranker.exhaustive(self.config, Q[query_idx:query_idx + 1], k))
+    #         perf.stopCounters()
+    #         cycles = perf.getCounter("cycles")
+    #         instructions = perf.getCounter("instructions")
+    #         L1_misses = perf.getCounter("L1-misses")
+    #         LLC_misses = perf.getCounter("LLC-misses")
+    #         L1_accesses = perf.getCounter("L1-accesses")
+    #         LLC_accesses = perf.getCounter("LLC-accesses")
+    #         branch_misses = perf.getCounter("branch-misses")
+    #         task_clock = perf.getCounter("task-clock")
+    #         all_perf.append([cycles, instructions,
+    #                          L1_misses, LLC_misses,
+    #                          L1_accesses, LLC_accesses,
+    #                          branch_misses, task_clock])
+    #
+    #         all_scored_pids.append(list(results_zip))
+    #
+    #     perf_df = pd.DataFrame(all_perf, columns=columns)
+    #     data = {qid: val for qid, val in zip(queries.keys(), all_scored_pids)}
+    #
+    #     provenance = Provenance()
+    #     provenance.source = 'Searcher::exhaustive'
+    #     provenance.queries = queries.provenance()
+    #     provenance.config = self.config.export()
+    #     provenance.k = k
+    #
+    #     return Ranking(data=data, provenance=provenance), perf_df
 
     def _search_all_Q(self, queries, Q, k, filter_fn=None):
         perf = perf_event.PerfEvent()

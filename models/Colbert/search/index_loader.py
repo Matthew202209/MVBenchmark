@@ -26,7 +26,7 @@ class IndexLoader:
         self._load_ivf()
         self._load_doclens()
         self._load_embeddings()
-        print(1)
+
 
 
     def _load_codec(self):

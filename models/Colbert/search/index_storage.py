@@ -235,7 +235,7 @@ class IndexScorer(IndexLoader, CandidateGeneration):
         from more_itertools import chunked
         top_scores = []
         top_pids = []
-        for pids in chunked(tqdm(range(len(self.doclens))), 100_000):
+        for pids in chunked(range(len(self.doclens)), 100_000):
             pids = torch.tensor(pids).int()
             D_packed = IndexScorer.decompress_residuals(
                 pids,
