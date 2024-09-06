@@ -3,17 +3,26 @@ This file is used to test the code of xtr
 """
 import argparse
 import gzip
+import json
 import os
 import logging
+import ir_measures
+from ir_measures import *
 
 import pandas as pd
+import perf_event
 import torch
+from tqdm import tqdm
 
 from models.XTR import XtrRetriever
 
+from process.pro_data import create_new_2_old_list
+from utils.utils_memory import memory_usage
+
+measure = [nDCG@10, RR@10, Success@10]
+
 if __name__ == '__main__':
-    logger = logging.getLogger(__name__)
-    logging.getLogger().setLevel(logging.INFO)
+
     device = "cpu"
     torch.set_grad_enabled(False)
 
@@ -30,7 +39,7 @@ if __name__ == '__main__':
     parser.add_argument("--token_top_k", type=int, default=8000)
     parser.add_argument("--trec_top_k", type=int, default=10)
     parser.add_argument("--dataset_dir", type=str, default="../datasets")
-    parser.add_argument("--index_dir", type=str, default="index")
+    parser.add_argument("--index_dir", type=str, default="index/XTR")
     parser.add_argument("--results_dir", type=str, default="./new_results/xtr")
     parser.add_argument("--load_index", type=bool, default=True)
 
@@ -47,6 +56,14 @@ if __name__ == '__main__':
     if not os.path.exists(eval_results_dir):
         os.makedirs(eval_results_dir)
 
+    json_dir_root = r"{}/data".format(os.getcwd())
+    query_json_dir = r"{}/query".format(json_dir_root)
+    label_json_dir = r"{}/label".format(json_dir_root)
+    corpus_file = r"{}/corpus/{}.jsonl".format(json_dir_root, args.dataset)
+    with open(r"{}/{}.json".format(query_json_dir, args.dataset), 'r', encoding="utf-8") as f:
+        queries = json.load(f)
+
+
     ######################################
     print("Step 1 - Load XTR Retriever")
     ######################################
@@ -60,40 +77,37 @@ if __name__ == '__main__':
     ######################################
     print("Step 2 - Load Datasets")
     ######################################
-    queries = PTBenchmarkDataLoader(args.data_set_path).load_queries()
-    encode_dataset = PTBenchmarkDataLoader(args.data_set_path)
-    encode_dataset.load_corpus()
-    encode_dataset.load_queries()
-    new_2_old_corpus = list(encode_dataset.corpus.keys())
-    new_2_old_queries = list(encode_dataset.queries.keys())
+
+    new_2_old_corpus = create_new_2_old_list(corpus_file)
+    new_2_old_queries = list(queries.keys())
 
     # For Scifact + XTR-base-en (P100), this should take about 3 minutes.
     index_dir = f"{args.index_dir}/{args.dataset}"
+
+    before_memory = memory_usage()
     index_num = xtr.load_index(
         index_dir=index_dir,
         code_size=args.code_size,
         nprobe=args.nprobe
     )
-
+    after_memory = memory_usage()
+    index_memory = after_memory - before_memory
 
     ######################################
     print("Step 4 - Run BEIR Evaluation")
     ######################################
-    qrels = ir_datasets.load(args.queries_path).qrels
+    qrels = pd.read_csv(r"{}/{}.csv".format(label_json_dir, args.dataset))
 
     eval_list = []
     # For Scifact, XTR-base-en (P100), this should take about 2 minutes.
-    for token_top_k in [2**6, 2**7, 2**8]:
-    # for token_top_k in [2**7]:
-        # Evaluation hyperparameters.
+    for token_top_k in [2**6,2**7,2**8]:
         TOKEN_TOP_K = token_top_k
         TREC_TOP_K = args.trec_top_k
         res_dict = {}
         # Running evaluation per query for a better latency measurement.
         all_perf =[]
-
+        perf = perf_event.PerfEvent()
         for q_idx, (_, query) in tqdm(enumerate(queries.items()), total=len(queries)):
-            perf = perf_event.PerfEvent()
             ranking, metadata, perf = xtr.retrieve_docs(
                 [query],
                 perf,
@@ -134,6 +148,7 @@ if __name__ == '__main__':
         eval_results = ir_measures.calc_aggregate(measure, qrels, ranks_results_pd)
         eval_results["parameter"] = (str(token_top_k))
         eval_results["token_top_k"] = token_top_k
+        eval_results["index_memory"] = index_memory
         eval_list.append(eval_results)
 
     eval_df = pd.DataFrame(eval_list)

@@ -46,11 +46,8 @@ if __name__ == '__main__':
     qrels = pd.read_csv(r"{}/{}.csv".format(label_json_dir, dataset))
 
     with Run().context(RunConfig(experiment='Colbert')):
-
         searcher = Searcher(checkpoint=checkpoint,index=index_name, is_colbertv2=True)
-
     path = f'{rank_path}/exhuastive.run.gz'
-
     new2old = create_new_2_old_list(corpus_file)
     eval_list = []
     results, perf_df = searcher.search_exhaustive_Q(queries, k=topk)
