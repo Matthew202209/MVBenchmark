@@ -18,14 +18,14 @@ from process.pro_data import create_new_2_old_list
 from utils.utils_memory import memory_usage
 
 checkpoint = '/home/chunming/Projects/Multivector/MVBenchmark/checkpoints/colbertv2.0'
-dataset = "nfcorpus"
+dataset = "fiqa"
 index_name = f'{dataset}.2bits'
 topk = 30
 measure = [nDCG@10, RR@10, Success@10]
 method= "colbertv2"
 if __name__ == '__main__':
     json_dir_root = r"{}/data".format(os.getcwd())
-    save_dir = r"{}/results/{}/{}".format(os.getcwd(),method,dataset)
+    save_dir = r"{}/new_results/{}/{}".format(os.getcwd(),method,dataset)
     perf_path = r"{}/{}".format(save_dir, "perf_results")
     rank_path = r"{}/{}".format(save_dir, "rank_results")
     eval_results_dir = r"{}/{}".format(save_dir, "eval_results")
