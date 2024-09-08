@@ -20,13 +20,18 @@ from models.Colbert.infra.launcher import print_memory_stats
 
 import time
 
+from utils.utils_general import create_this_perf
 from utils.utils_memory import memory_usage
 
 TextQueries = Union[str, 'list[str]', 'dict[int, str]', Queries]
-columns = ["cycles", "instructions",
-           "L1_misses", "LLC_misses",
-           "L1_accesses", "LLC_accesses",
-           "branch_misses", "task_clock"]
+columns = ["encode_cycles", "encode_instructions",
+           "encode_L1_misses", "encode_LLC_misses",
+           "encode_L1_accesses", "encode_LLC_accesses",
+           "encode_branch_misses", "encode_task_clock",
+           "retrieval_cycles", "retrieval_instructions",
+           "retrieval_L1_misses", "retrieval_LLC_misses",
+           "retrieval_L1_accesses", "retrieval_LLC_accesses",
+           "retrieval_branch_misses", "retrieval_task_clock"]
 
 
 
@@ -89,27 +94,19 @@ class Searcher:
     def search_exhaustive_Q(self, queries: TextQueries, k=10, full_length_search=False):
         queries = Queries.cast(queries)
         queries_ = list(queries.values())
-        perf = perf_event.PerfEvent()
+        perf_encode = perf_event.PerfEvent()
+        perf_retrival = perf_event.PerfEvent()
         all_scored_pids = []
         all_perf = []
         for q in tqdm(queries_):
-            perf.startCounters()
+            perf_encode.startCounters()
             Q = self.encode(q, full_length_search=full_length_search)
+            perf_encode.stopCounters()
+            perf_retrival.startCounters()
             results_zip = zip(*self.ranker.exhaustive(self.config, Q, k))
-            perf.stopCounters()
-            cycles = perf.getCounter("cycles")
-            instructions = perf.getCounter("instructions")
-            L1_misses = perf.getCounter("L1-misses")
-            LLC_misses = perf.getCounter("LLC-misses")
-            L1_accesses = perf.getCounter("L1-accesses")
-            LLC_accesses = perf.getCounter("LLC-accesses")
-            branch_misses = perf.getCounter("branch-misses")
-            task_clock = perf.getCounter("task-clock")
-            all_perf.append([cycles, instructions,
-                             L1_misses, LLC_misses,
-                             L1_accesses, LLC_accesses,
-                             branch_misses, task_clock])
-
+            perf_retrival.stopCounters()
+            this_perf = create_this_perf(perf_encode, perf_retrival)
+            all_perf.append(this_perf)
             all_scored_pids.append(list(results_zip))
 
         perf_df = pd.DataFrame(all_perf, columns=columns)
@@ -122,36 +119,27 @@ class Searcher:
         provenance.k = k
         return Ranking(data=data, provenance=provenance), perf_df
 
-
     def search_plaid_Q(self, queries: TextQueries, k=10, full_length_search=False):
         queries = Queries.cast(queries)
         queries_ = list(queries.values())
-        perf = perf_event.PerfEvent()
+        perf_encode = perf_event.PerfEvent()
+        perf_retrival = perf_event.PerfEvent()
         all_scored_pids = []
         all_perf = []
         for q in tqdm(queries_):
-            perf.startCounters()
+            perf_encode.startCounters()
             Q = self.encode(q, full_length_search=full_length_search)
+            perf_encode.stopCounters()
+            perf_retrival.startCounters()
             results_zip = zip(*self.dense_search(Q, k))
-            perf.stopCounters()
-            cycles = perf.getCounter("cycles")
-            instructions = perf.getCounter("instructions")
-            L1_misses = perf.getCounter("L1-misses")
-            LLC_misses = perf.getCounter("LLC-misses")
-            L1_accesses = perf.getCounter("L1-accesses")
-            LLC_accesses = perf.getCounter("LLC-accesses")
-            branch_misses = perf.getCounter("branch-misses")
-            task_clock = perf.getCounter("task-clock")
-            all_perf.append([cycles, instructions,
-                             L1_misses, LLC_misses,
-                             L1_accesses, LLC_accesses,
-                             branch_misses, task_clock])
-
+            perf_retrival.stopCounters()
+            this_perf = create_this_perf(perf_encode, perf_retrival)
+            all_perf.append(this_perf)
             all_scored_pids.append(list(results_zip))
         perf_df = pd.DataFrame(all_perf, columns=columns)
         data = {qid: val for qid, val in zip(queries.keys(), all_scored_pids)}
         provenance = Provenance()
-        provenance.source = 'Searcher::exhaustive'
+        provenance.source = 'Searcher::plaid'
         provenance.queries = queries.provenance()
         provenance.config = self.config.export()
         provenance.k = k
@@ -160,34 +148,25 @@ class Searcher:
     def search_vanilla_colbertv2_Q(self, queries: TextQueries, k=10, full_length_search=False):
         queries = Queries.cast(queries)
         queries_ = list(queries.values())
-        perf = perf_event.PerfEvent()
+        perf_encode = perf_event.PerfEvent()
+        perf_retrival = perf_event.PerfEvent()
         all_scored_pids = []
         all_perf = []
         for q in tqdm(queries_):
-            perf.startCounters()
+            perf_encode.startCounters()
             Q = self.encode(q, full_length_search=full_length_search)
+            perf_encode.stopCounters()
+            perf_retrival.startCounters()
             results_zip = zip(*self.dense_search_vanilla_colbertv2(Q, k))
-            perf.stopCounters()
-            cycles = perf.getCounter("cycles")
-            instructions = perf.getCounter("instructions")
-            L1_misses = perf.getCounter("L1-misses")
-            LLC_misses = perf.getCounter("LLC-misses")
-            L1_accesses = perf.getCounter("L1-accesses")
-            LLC_accesses = perf.getCounter("LLC-accesses")
-            branch_misses = perf.getCounter("branch-misses")
-            task_clock = perf.getCounter("task-clock")
-            all_perf.append([cycles, instructions,
-                             L1_misses, LLC_misses,
-                             L1_accesses, LLC_accesses,
-                             branch_misses, task_clock])
-
+            perf_retrival.stopCounters()
+            this_perf = create_this_perf(perf_encode, perf_retrival)
+            all_perf.append(this_perf)
             all_scored_pids.append(list(results_zip))
-
         perf_df = pd.DataFrame(all_perf, columns=columns)
         data = {qid: val for qid, val in zip(queries.keys(), all_scored_pids)}
 
         provenance = Provenance()
-        provenance.source = 'Searcher::exhaustive'
+        provenance.source = 'Searcher::colbertv2'
         provenance.queries = queries.provenance()
         provenance.config = self.config.export()
         provenance.k = k
@@ -195,39 +174,39 @@ class Searcher:
         return Ranking(data=data, provenance=provenance), perf_df
 
 
-    def search_vanilla_colberv2_Q(self, queries: TextQueries, Q, k=10):
-            queries = Queries.cast(queries)
-            perf = perf_event.PerfEvent()
-            all_scored_pids = []
-            all_perf = []
-            for query_idx in tqdm(range(Q.size(0))):
-                perf.startCounters()
-                results_zip = zip(*self.dense_search_vanilla_colbertv2(Q[query_idx:query_idx + 1], k))
-                perf.stopCounters()
-                cycles = perf.getCounter("cycles")
-                instructions = perf.getCounter("instructions")
-                L1_misses = perf.getCounter("L1-misses")
-                LLC_misses = perf.getCounter("LLC-misses")
-                L1_accesses = perf.getCounter("L1-accesses")
-                LLC_accesses = perf.getCounter("LLC-accesses")
-                branch_misses = perf.getCounter("branch-misses")
-                task_clock = perf.getCounter("task-clock")
-                all_perf.append([cycles, instructions,
-                                 L1_misses, LLC_misses,
-                                 L1_accesses, LLC_accesses,
-                                 branch_misses, task_clock])
-
-                all_scored_pids.append(list(results_zip))
-            perf_df = pd.DataFrame(all_perf, columns=columns)
-            data = {qid: val for qid, val in zip(queries.keys(), all_scored_pids)}
-
-            provenance = Provenance()
-            provenance.source = 'Searcher::exhaustive'
-            provenance.queries = queries.provenance()
-            provenance.config = self.config.export()
-            provenance.k = k
-
-            return Ranking(data=data, provenance=provenance), perf_df
+    # def search_vanilla_colberv2_Q(self, queries: TextQueries, Q, k=10):
+    #         queries = Queries.cast(queries)
+    #         perf = perf_event.PerfEvent()
+    #         all_scored_pids = []
+    #         all_perf = []
+    #         for query_idx in tqdm(range(Q.size(0))):
+    #             perf.startCounters()
+    #             results_zip = zip(*self.dense_search_vanilla_colbertv2(Q[query_idx:query_idx + 1], k))
+    #             perf.stopCounters()
+    #             cycles = perf.getCounter("cycles")
+    #             instructions = perf.getCounter("instructions")
+    #             L1_misses = perf.getCounter("L1-misses")
+    #             LLC_misses = perf.getCounter("LLC-misses")
+    #             L1_accesses = perf.getCounter("L1-accesses")
+    #             LLC_accesses = perf.getCounter("LLC-accesses")
+    #             branch_misses = perf.getCounter("branch-misses")
+    #             task_clock = perf.getCounter("task-clock")
+    #             all_perf.append([cycles, instructions,
+    #                              L1_misses, LLC_misses,
+    #                              L1_accesses, LLC_accesses,
+    #                              branch_misses, task_clock])
+    #
+    #             all_scored_pids.append(list(results_zip))
+    #         perf_df = pd.DataFrame(all_perf, columns=columns)
+    #         data = {qid: val for qid, val in zip(queries.keys(), all_scored_pids)}
+    #
+    #         provenance = Provenance()
+    #         provenance.source = 'Searcher::exhaustive'
+    #         provenance.queries = queries.provenance()
+    #         provenance.config = self.config.export()
+    #         provenance.k = k
+    #
+    #         return Ranking(data=data, provenance=provenance), perf_df
 
 
     # def search_exhaustive_Q(self, queries: TextQueries, Q, k=10, filter_fn=None, full_length_search=False):
@@ -365,34 +344,21 @@ class LadrSearcher(Searcher):
         df_queries = pd.DataFrame(queries.items(), columns=['qid', 'query'])
         initial_res = dict(iter(self.first_pass(df_queries).groupby('qid')))
         queries_ = list(queries.values())
-        perf = perf_event.PerfEvent()
+        perf_encode = perf_event.PerfEvent()
+        perf_retrival = perf_event.PerfEvent()
         qids = list(queries.keys())
         all_scored_pids = []
         all_perf = []
-        for query_idx, q in tqdm(enumerate(queries_)):
-            perf.startCounters()
+        for query_idx, q in enumerate(tqdm(queries_)):
+            perf_encode.startCounters()
             Q = self.encode(q, full_length_search=full_length_search)
+            perf_encode.stopCounters()
+            perf_retrival.startCounters()
             results_zip = zip(*self.dense_search(Q, k, filter_fn=filter_fn,
                                 initial_res=initial_res.get(qids[query_idx], pd.DataFrame(columns=['docno']))))
-
-            perf.stopCounters()
-            cycles = perf.getCounter("cycles")
-            instructions = perf.getCounter("instructions")
-            L1_misses = perf.getCounter("L1-misses")
-            LLC_misses = perf.getCounter("LLC-misses")
-            L1_accesses = perf.getCounter("L1-accesses")
-            LLC_accesses = perf.getCounter("LLC-accesses")
-            branch_misses = perf.getCounter("branch-misses")
-            task_clock = perf.getCounter("task-clock")
-            all_perf.append([cycles, instructions,
-                             L1_misses, LLC_misses,
-                             L1_accesses, LLC_accesses,
-                             branch_misses, task_clock])
-            all_scored_pids.append(list(results_zip))
-            all_perf.append([cycles, instructions,
-                             L1_misses, LLC_misses,
-                             L1_accesses, LLC_accesses,
-                             branch_misses, task_clock])
+            perf_retrival.stopCounters()
+            this_perf = create_this_perf(perf_encode,perf_retrival)
+            all_perf.append(this_perf)
             all_scored_pids.append(list(results_zip))
         perf_df = pd.DataFrame(all_perf, columns=columns)
         data = {qid: val for qid, val in zip(queries.keys(), all_scored_pids)}

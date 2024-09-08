@@ -25,7 +25,7 @@ topk = 30
 measure = [nDCG@10, RR@10, Success@10]
 
 if __name__ == '__main__':
-    dataset_list =[ "quora", "scifact", "scidocs", "antique","arguana","clinicaltrials"]
+    dataset_list =["scifact"]
     for dataset in dataset_list:
         index_name = f'{dataset}.2bits'
         json_dir_root = r"{}/data".format(os.getcwd())
@@ -66,6 +66,7 @@ if __name__ == '__main__':
             ranks_results_pd.at[i, "doc_id"] = new2old[int(r["doc_id"])]
         eval_results = ir_measures.calc_aggregate(measure, qrels, ranks_results_pd)
         eval_results["index_memory"] = searcher.index_memory
+        eval_results['index_dlen'] = len(new2old)
         eval_list.append(eval_results)
         eval_df = pd.DataFrame(eval_list)
         eval_df.to_csv(r"{}/eval.csv".format(eval_results_dir), index=False)
