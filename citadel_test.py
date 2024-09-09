@@ -9,7 +9,7 @@ from models.Citadel.citadel_retrieval import CitadelRetrieve
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--corpus_file", type=str, default=r"./data/corpus")
-    parser.add_argument("--dataset", type=str, default=r"nfcorpus")
+    parser.add_argument("--dataset", type=str, default=r"fiqa")
     parser.add_argument("--data_dir", type=str, default=r"./data/corpus")
     # parser.add_argument("--ctx_embeddings_dir", type=str, default=r"./cache/Citadel")
     parser.add_argument("--index_dir", type=str, default=r"./index/Citadel")
@@ -48,7 +48,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     ######################################
     args.corpus_file = r"{}/{}.jsonl".format(args.data_dir, args.dataset)
-    prune_weights_list = [0.6, 0.9, 0.8, 1.0, 1.2, 1.4]
+    prune_weights_list = [0.8, 1.0, 1.2, 1.4]
     eval_list = []
     for prune_weight in prune_weights_list:
         args.prune_weight = prune_weight

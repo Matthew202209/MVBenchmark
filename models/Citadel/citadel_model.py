@@ -42,7 +42,6 @@ class CITADELEncoder(nn.Module):
             )
 
     def forward(self, tokens, topk=1, add_cls=False):
-        print(topk)
         ret = {}
         # make it transformer 4.x compatible
         outputs = self.transformer(**tokens, return_dict=True)
