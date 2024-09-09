@@ -6,7 +6,7 @@ import torch.distributed as dist
 from transformers import PreTrainedModel, TrainingArguments
 from transformers import AutoModel
 from transformers.modeling_outputs import SequenceClassifierOutput, BaseModelOutputWithPooling
-from coil_arguments import ModelArguments, DataArguments
+from .coil_arguments import ModelArguments, DataArguments
 from torch import Tensor
 from typing import Dict, List, Tuple, Iterable
 

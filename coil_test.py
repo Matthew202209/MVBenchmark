@@ -14,7 +14,7 @@ from utils.utils_memory import memory_usage
 
 def set_model_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model_name_or_path", type=str, default="./hn_checkpoint")
+    parser.add_argument("--model_name_or_path", type=str, default="./checkpoints/coil_checkpoint")
     parser.add_argument("--tokenizer_name", type=str, default="bert-base-uncased")
     parser.add_argument("--token_dim", type=str, default=32)
     parser.add_argument("--cls_dim", type=str, default=768)
@@ -34,9 +34,9 @@ def set_data_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--train_group_size", type=int, default=8)
     parser.add_argument("--dataset", type=str, default="nfcorpus")
-    parser.add_argument("--queries_path", type=str, default='irds:beir/nfcorpus/test')
+    parser.add_argument("--query_json_dir", type=str, default='./data/query')
     parser.add_argument("--encoded_save_path", type=str, default=r"./queries_encode")
-    parser.add_argument("--doc_index_save_path", type=str, default=r"./index")
+    parser.add_argument("--doc_index_save_path", type=str, default=r"./index/Coil")
     parser.add_argument("--dataset_path", type=str, default=r"/home/chunming/projects/Mutivector/learn/plaidrepro/jsonl_data")
     parser.add_argument("--document", type=bool, default=False)
     parser.add_argument("--p_max_len", type=int, default=32)
@@ -60,20 +60,24 @@ def evaluation_args():
                         default=r"./queries_encode")
     parser.add_argument("--json_dir_root", type=str, default='./data')
     parser.add_argument('--measure', type=list,
-                        default=[nDCG@10, RR @ 10, Success @ 5])
-    parser.add_argument('--top', type=int, default=10)
+                        default=[nDCG@10, RR @ 10, Success @ 10])
+    parser.add_argument('--top', type=int, default=30)
     parser.add_argument('--batch_size', type=int, default=1)
     parser.add_argument('--depth', type=int, default=10)
+    parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument('--results_save_to', type=str,
                         default=r'./results')
     args = parser.parse_args()
     return args
 
+
 if __name__ == '__main__':
+    dataset= "scifact"
     model_args = set_model_args()
     data_args = set_data_args()
     training_args = training_args()
     eval_args = evaluation_args()
+    data_args.dataset = dataset
 
     save_dir = r"{}/coil/{}".format(eval_args.results_save_to, data_args.dataset)
     if not os.path.exists(save_dir):
@@ -88,7 +92,6 @@ if __name__ == '__main__':
     if not os.path.exists(eval_results_dir):
         os.makedirs(eval_results_dir)
 
-
     label_json_dir = r"{}/label".format(eval_args.json_dir_root)
     corpus_file = r"{}/corpus/{}.jsonl".format(eval_args.json_dir_root, data_args.dataset)
     qrels = pd.read_csv(r"{}/{}.csv".format(label_json_dir, data_args.dataset))
@@ -96,9 +99,8 @@ if __name__ == '__main__':
     qrels["doc_id"] = qrels["doc_id"].astype(str)
     new2old = create_new_2_old_list(corpus_file)
 
-    device = "cpu"
-    top_k = 30
-    coil_r = CoilRetriever(model_args, data_args, training_args, device)
+
+    coil_r = CoilRetriever(model_args, data_args, training_args, eval_args.device)
     coil_r.set_model()
     coil_r.set_data_loader()
 
@@ -108,13 +110,15 @@ if __name__ == '__main__':
     index_memory = after_memory - before_memory
 
 
-    scores, indices, perf_df = coil_r.retrieve(top_k)
+    scores, indices, perf_df = coil_r.retrieve(topk=eval_args.top)
+    perf_df.to_csv(r"{}/coil_perf.csv".format(perf_path), index=False)
     rh = faiss.ResultHeap(scores.shape[0], eval_args.depth)
     rh.add_result(-scores.numpy(), indices.numpy())
     rh.finalize()
     corpus_scores, corpus_indices = (-rh.D).tolist(), rh.I.tolist()
-    qid_list = coil_r.query_dataset.queries.keys()
+    qid_list = list(coil_r.query_dataset.queries.keys())
     path = r"{}/coil.run.gz".format(rank_path)
+
     with gzip.open(path, 'wt') as fout:
         for i in range(len(corpus_scores)):
             q_id = qid_list[i]

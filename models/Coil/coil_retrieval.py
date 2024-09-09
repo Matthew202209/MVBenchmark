@@ -52,18 +52,20 @@ class CoilRetriever:
     )
 
     def set_data_loader(self):
-        tokenizer = AutoTokenizer.from_pretrained(
+        self.tokenizer = AutoTokenizer.from_pretrained(
             self.model_args.tokenizer_name,
             use_fast=False
         )
-        self.query_dataset = BenchmarkQueries(self.data_args.queries_path, tokenizer, p_max_len=self.data_args.p_max_len)
+        self.query_dataset = BenchmarkQueries(self.data_args.dataset, self.tokenizer,
+                                              self.data_args.query_json_dir,
+                                              p_max_len=self.data_args.p_max_len)
         self.query_dataset.load_queries()
 
         self.query_dataloader = DataLoader(
             self.query_dataset,
             batch_size=1,
             collate_fn=DataCollatorWithPadding(
-                tokenizer,
+                self.tokenizer,
                 max_length=self.data_args.p_max_len,
                 padding='max_length'
             ),
@@ -89,7 +91,7 @@ class CoilRetriever:
         perf_encode = perf_event.PerfEvent()
         perf_retrival = perf_event.PerfEvent()
 
-        model = self.model.to(device)
+        model = self.model.to(self.device)
         model.eval()
         all_ivl_scatter_maps, all_shard_scatter_maps, tok_id_2_reps, doc_cls_reps, cls_ex_ids = self.index
         all_query_match_scores = []
@@ -99,18 +101,22 @@ class CoilRetriever:
             with torch.cuda.amp.autocast():
                 with torch.no_grad():
                     for k, v in batch.items():
-                        batch[k] = v.to(device)
+                        batch[k] = v.to(self.device)
                     perf_encode.startCounters()
                     cls, reps = model.encode(**batch)
                     perf_encode.stopCounters()
 
             perf_retrival.startCounters()
-            batch_qtok_ids = self.query_dataset.nlp_dataset[qid][1:self.data_args.p_max_len - 2]
-            batch_q_reps = cls.cpu().numpy()
+            batch_qtok_ids = self.query_dataset.nlp_dataset[qid][:self.data_args.p_max_len - 2]
+            batch_q_reps = cls.cpu()
             match_scores = torch.matmul(batch_q_reps, doc_cls_reps.transpose(0, 1))
             batched_tok_scores = []
+
+            batch_qtok_ids = [q_id for q_id in batch_qtok_ids if q_id in all_ivl_scatter_maps.keys()]
+            batch_qtok_ids = batch_qtok_ids + [self.tokenizer.sep_token_id]
             for batch_id, q_tok_id in enumerate(batch_qtok_ids):
-                q_tok_reps = reps[batch_id]
+                a = reps[0]
+                q_tok_reps = reps[0][batch_id+1].unsqueeze(0)
                 tok_reps = tok_id_2_reps[q_tok_id]
                 tok_scores = torch.matmul(q_tok_reps, tok_reps.transpose(0, 1)).relu_()
                 batched_tok_scores.append(tok_scores)

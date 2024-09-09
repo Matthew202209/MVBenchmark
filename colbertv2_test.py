@@ -28,7 +28,7 @@ if __name__ == '__main__':
     for dataset in dataset_list:
         index_name = f'{dataset}.2bits'
         json_dir_root = r"{}/data".format(os.getcwd())
-        save_dir = r"{}/new_results/{}/{}".format(os.getcwd(),method,dataset)
+        save_dir = r"{}/results/{}/{}".format(os.getcwd(),method,dataset)
         perf_path = r"{}/{}".format(save_dir, "perf_results")
         rank_path = r"{}/{}".format(save_dir, "rank_results")
         eval_results_dir = r"{}/{}".format(save_dir, "eval_results")
