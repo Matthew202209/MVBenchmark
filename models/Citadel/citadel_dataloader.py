@@ -1,9 +1,4 @@
-import os
-# os.environ['HF_DATASETS_CACHE'] = r"/export/data/liane/ChunmingMA/indexing/cache"
-# os.environ["HF_HOME"] = r"/export/data/liane/ChunmingMA/indexing/cache"
-# os.environ["HUGGINGFACE_HUB_CACHE"] = r"/export/data/liane/ChunmingMA/indexing/cache"
-# os.environ["IR_DATASETS_HOME"] = r"/export/data/liane/ChunmingMA/indexing/cache"
-# os.environ["IR_DATASETS_TMP"] = r"/export/data/liane/ChunmingMA/indexing/cache"
+import json
 
 import ujson
 import ir_datasets
@@ -54,18 +49,34 @@ class BenchmarkDataset(Dataset):
 
         return encoded_psg
 
+class BenchmarkQueries(Dataset):
+    def __init__(self, dataset, tokenizer, query_json_dir, p_max_len=128):
+        self.dataset = dataset
+        self.query_json_dir = query_json_dir
+        self.nlp_dataset = None
+        self.nlp_dataset = []
+        self.tok = tokenizer
+        self.p_max_len = p_max_len
+        self._load_queries()
+
+    def _load_queries(self):
+        with open(r"{}/{}.json".format(self.query_json_dir, self.dataset), 'r', encoding="utf-8") as f:
+            self.queries = json.load(f)
+
 
 class BenchmarkQueriesDataset(Dataset):
     def __init__(self, config, tokenizer):
         self.config = config
-        self.queries_path = config.queries_path
+        self.dataset = self.config.dataset
+
+        self.query_json_dir = config.query_json_dir
         self.queries = {}
         self.tokenizer = tokenizer
         self._load_queries()
 
     def _load_queries(self):
-        dataset = ir_datasets.load(self.queries_path)
-        self.queries = {query.query_id: query.text for query in dataset.queries_iter()}
+        with open(r"{}/{}.json".format(self.query_json_dir, self.dataset), 'r', encoding="utf-8") as f:
+            self.queries = json.load(f)
 
     def __len__(self):
         return len(list(self.queries.keys()))

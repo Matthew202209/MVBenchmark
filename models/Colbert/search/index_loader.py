@@ -44,28 +44,6 @@ class IndexLoader:
             ivf = StridedTensor(ivf, ivf_lengths, use_gpu=self.use_gpu)
             self.ivf = ivf
 
-        # if os.path.exists(os.path.join(self.index_path, "ivf.pid.pt")):
-        #     ivf, ivf_lengths = torch.load(os.path.join(self.index_path, "ivf.pid.pt"), map_location='cpu')
-        #
-        # if os.path.exists(os.path.join(self.index_path, "ivf.ori.pt")):
-        #     ivf_ori, ivf_ori_lengths = torch.load(os.path.join(self.index_path, "ivf.ori.pt"), map_location='cpu')
-
-        # else:
-        #     assert os.path.exists(os.path.join(self.index_path, "ivf.pt"))
-        #     ivf, ivf_lengths = torch.load(os.path.join(self.index_path, "ivf.pt"), map_location='cpu')
-        #     ivf, ivf_lengths = optimize_ivf(ivf, ivf_lengths, self.index_path)
-        #
-        # if False:
-        #     ivf = ivf.tolist()
-        #     ivf = [ivf[offset:endpos] for offset, endpos in lengths2offsets(ivf_lengths)]
-        # else:
-        #     # ivf, ivf_lengths = ivf.cuda(), torch.LongTensor(ivf_lengths).cuda()  # FIXME: REMOVE THIS LINE!
-        #     ivf = StridedTensor(ivf, ivf_lengths, use_gpu=self.use_gpu)
-        #     ivf_ori = StridedTensor(ivf_ori, ivf_ori_lengths, use_gpu=self.use_gpu)
-        #
-        #
-        # self.ivf = ivf
-        # self.ivf_ori = ivf_ori
 
     def _load_doclens(self):
         doclens = []

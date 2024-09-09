@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader
 from transformers import BertTokenizer, DataCollatorWithPadding
 
 from .citadel_dataloader import BenchmarkQueriesDataset, BenchmarkDataset
-from dpr_scale.index.inverted_vector_index import IVFCPUIndex, IVFGPUIndex
+from .citadel_inverted_index import IVFCPUIndex, IVFGPUIndex
 from .citadel_model import CITADELEncoder
 from .citadel_utils import process_check_point
 
@@ -164,7 +164,7 @@ class CitadelRetrieve:
         return self.evaluate(path)
 
     def evaluate(self, path):
-        qrels = ir_datasets.load(self.config.queries_path).qrels
+        qrels = pd.read_csv(r"{}/{}.csv".format(self.config.label_json_dir, self.config.dataset))
         encode_dataset = BenchmarkDataset(self.config, None)
         new_2_old = list(encode_dataset.corpus.keys())
         rank_results_pd = pd.DataFrame(list(ir_measures.read_trec_run(path)))
@@ -174,10 +174,7 @@ class CitadelRetrieve:
         eval_results["parameter"] = (str(self.config.prune_weight))
         eval_results["prune_weight"] = self.config.prune_weight
         return eval_results
-        # eval_df = pd.DataFrame([eval_results])
-        #
-        # eval_df.to_csv(r"{}/eval-{}.csv".format(self.eval_path, str(self.config.prune_weight)), index=False)
-        # print(eval_results)
+
 
     def _save_perf(self, all_perf: list):
         columns = ["cycles", "instructions",
