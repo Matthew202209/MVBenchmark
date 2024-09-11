@@ -56,9 +56,7 @@ class XtrRetriever(object):
     def tokenize(self, text):
         return [self.tokenizer.id_to_string(id_).numpy().decode('utf-8') for id_ in self.tokenizer.tokenize(text)]
 
-    def get_token_embeddings(self, texts):
-        encoded_inputs = self.tokenizer(texts, return_tensors='pt', padding='max_length', truncation=True,
-                                        max_length=self.max_seq_len).to(device=self.device)
+    def get_token_embeddings(self, encoded_inputs):
         with torch.no_grad():
             batch_embeds = self.encoder(**encoded_inputs)
 
@@ -66,8 +64,12 @@ class XtrRetriever(object):
 
         return batch_embeds.cpu().numpy(), batch_lengths
 
-    def get_flatten_embeddings(self, batch_text, return_last_offset=False):
-        batch_embeddings, batch_lengths = self.get_token_embeddings(batch_text)
+    def get_flatten_embeddings(self, batch_text,perf_encode, return_last_offset=False):
+        encoded_inputs = self.tokenizer(batch_text, return_tensors='pt', padding='max_length', truncation=True,
+                                       max_length=self.max_seq_len).to(device=self.device)
+
+        perf_encode.startCounters()
+        batch_embeddings, batch_lengths = self.get_token_embeddings(encoded_inputs)
         flatten_embeddings = None
         num_tokens = 0
         offsets = [0]
@@ -81,7 +83,8 @@ class XtrRetriever(object):
         assert num_tokens == flatten_embeddings.shape[0]
         if not return_last_offset:
             offsets = offsets[:-1]
-        return flatten_embeddings, offsets
+        perf_encode.stopCounters()
+        return flatten_embeddings, offsets, perf_encode
 
     def build_index(self, documents, batch_size=32, **kwargs):
         if self.use_faiss:
@@ -316,16 +319,17 @@ class XtrRetriever(object):
     def retrieve_docs(
             self,
             batch_query: List[str],
-            perf,
+            perf_encode,
+            perf_retrieve,
             token_top_k: int = 100,
             document_top_k: int = 100,
             return_text: bool = True,
     ):
 
         """Runs XTR retrieval for a query."""
-        perf.startCounters()
-        all_query_encodings, query_offsets = self.get_flatten_embeddings(batch_query, return_last_offset=True)
+        all_query_encodings, query_offsets, perf_encode = self.get_flatten_embeddings(batch_query, perf_encode, return_last_offset=True)
         # batch_result = self.batch_search_tokens(batch_query, token_top_k=token_top_k)
+        perf_retrieve.startCounters()
         all_neighbors, all_scores = self.searcher.search_batched(all_query_encodings, final_num_neighbors=token_top_k)
         batch_result = [
             (
@@ -337,9 +341,11 @@ class XtrRetriever(object):
         ]
         batch_mae = self.estimate_missing_similarity(batch_result)
         batch_ranking = self.aggregate_scores(batch_result, batch_mae, document_top_k)
-        perf.stopCounters()
+        perf_retrieve.stopCounters()
+
+
 
         if return_text:
             return self.get_document_text(batch_ranking), batch_result
         else:
-            return batch_ranking, batch_result, perf
+            return batch_ranking, batch_result, perf_encode, perf_retrieve

@@ -17,14 +17,14 @@ import ir_datasets
 from process.pro_data import create_new_2_old_list
 from utils.utils_memory import memory_usage, colbert_get_folder_size
 
-checkpoint = '/home/chunming/Projects/Multivector/MVBenchmark/checkpoints/colbertv2.0'
+checkpoint = './checkpoints/colbertv2.0'
 dataset = "nfcorpus"
 method = "plaid"
 topk = 30
 measure = [nDCG@10, RR@10, Success@10]
 
 if __name__ == '__main__':
-    dataset_list = ["nfcorpus", "quora", "scifact", "scidocs", "antique", "arguana", "clinicaltrials"]
+    dataset_list =  ["antique", "arguana", "clinicaltrials", "fiqa", "nfcorpus", "quora", "scidocs", "scifact"]
     for dataset in dataset_list:
         index_name = f'{dataset}.2bits'
         json_dir_root = r"{}/data".format(os.getcwd())
@@ -81,7 +81,7 @@ if __name__ == '__main__':
                     eval_results["ncells"] = ncells
                     eval_results["centroid_score_threshold"] = centroid_score_threshold
                     eval_results["ndocs"] = ndocs
-                    eval_results["index_memory"] = searcher.index_memory
+                    eval_results["index_memory"] = index_memory
                     eval_results["index_dlen"] = len(new2old)
                     eval_list.append(eval_results)
 

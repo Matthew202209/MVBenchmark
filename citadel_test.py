@@ -50,24 +50,27 @@ if __name__ == '__main__':
     args = parser.parse_args()
     ######################################
     args.corpus_file = r"{}/{}.jsonl".format(args.data_dir, args.dataset)
-    prune_weights_list = [0.8, 1.0, 1.2, 1.4]
-    eval_list = []
-    for prune_weight in prune_weights_list:
-        args.prune_weight = prune_weight
-        print(args.prune_weight)
-        expert_dir = r"{}/{}/{}/{}".format(args.index_dir, args.dataset, r"expert", prune_weight)
-        cls_path = os.path.join(args.index_dir, args.dataset, "cls.pkl")
-        index_memory = get_folder_size(expert_dir)
-        index_memory += os.path.getsize(cls_path)
+    dataset_list =["quora"]
+    for dataset in dataset_list:
+        args.dataset = dataset
+        print(args.dataset)
+        prune_weights_list = [0.6, 0.8, 1.0, 1.2, 1.4]
+        eval_list = []
+        for prune_weight in prune_weights_list:
+            args.prune_weight = prune_weight
+            print(args.prune_weight)
+            expert_dir = r"{}/{}/{}/{}".format(args.index_dir, args.dataset, r"expert", prune_weight)
+            cls_path = os.path.join(args.index_dir, args.dataset, "cls.pkl")
+            index_memory = get_folder_size(expert_dir)
+            index_memory += os.path.getsize(cls_path)
+            cr = CitadelRetrieve(args)
+            cr.setup()
+            path = cr.run()
+            eval_results = cr.evaluate(path, index_memory)
+            eval_list.append(eval_results)
 
-        cr = CitadelRetrieve(args)
-        cr.setup()
-        path = cr.run()
-        eval_results = cr.evaluate(path, index_memory)
-        eval_list.append(eval_results)
-
-    eval_df = pd.DataFrame(eval_list)
-    eval_df.to_csv(r"{}/citadel/{}/eval_results/eval.csv".format(args.results_save_to, args.dataset), index=False)
+        eval_df = pd.DataFrame(eval_list)
+        eval_df.to_csv(r"{}/citadel/{}/eval_results/eval.csv".format(args.results_save_to, args.dataset), index=False)
 
 
 

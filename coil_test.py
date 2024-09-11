@@ -72,68 +72,70 @@ def evaluation_args():
 
 
 if __name__ == '__main__':
-    dataset= "scifact"
     model_args = set_model_args()
     data_args = set_data_args()
     training_args = training_args()
     eval_args = evaluation_args()
-    data_args.dataset = dataset
+    dataset_list = ["antique", "arguana", "clinicaltrials", "fiqa", "nfcorpus", "quora", "scidocs", "scifact"]
+    for dataset in dataset_list:
 
-    save_dir = r"{}/coil/{}".format(eval_args.results_save_to, data_args.dataset)
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
-    perf_path = r"{}/{}".format(save_dir, "perf_results")
-    rank_path = r"{}/{}".format(save_dir, "rank_results")
-    eval_results_dir = r"{}/{}".format(save_dir, "eval_results")
-    index_load_path = r"{}/{}".format(data_args.doc_index_save_path, data_args.dataset)
-    index_memory = get_folder_size(index_load_path)
+        data_args.dataset = dataset
 
-
-    if not os.path.exists(perf_path):
-        os.makedirs(perf_path)
-    if not os.path.exists(rank_path):
-        os.makedirs(rank_path)
-    if not os.path.exists(eval_results_dir):
-        os.makedirs(eval_results_dir)
-
-    label_json_dir = r"{}/label".format(eval_args.json_dir_root)
-    corpus_file = r"{}/corpus/{}.jsonl".format(eval_args.json_dir_root, data_args.dataset)
-    qrels = pd.read_csv(r"{}/{}.csv".format(label_json_dir, data_args.dataset))
-    qrels["query_id"] = qrels["query_id"].astype(str)
-    qrels["doc_id"] = qrels["doc_id"].astype(str)
-    new2old = create_new_2_old_list(corpus_file)
+        save_dir = r"{}/coil/{}".format(eval_args.results_save_to, data_args.dataset)
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+        perf_path = r"{}/{}".format(save_dir, "perf_results")
+        rank_path = r"{}/{}".format(save_dir, "rank_results")
+        eval_results_dir = r"{}/{}".format(save_dir, "eval_results")
+        index_load_path = r"{}/{}".format(data_args.doc_index_save_path, data_args.dataset)
+        index_memory = get_folder_size(index_load_path)
 
 
-    coil_r = CoilRetriever(model_args, data_args, training_args, eval_args.device)
-    coil_r.set_model()
-    coil_r.set_data_loader()
-    coil_r.load_index()
+        if not os.path.exists(perf_path):
+            os.makedirs(perf_path)
+        if not os.path.exists(rank_path):
+            os.makedirs(rank_path)
+        if not os.path.exists(eval_results_dir):
+            os.makedirs(eval_results_dir)
+
+        label_json_dir = r"{}/label".format(eval_args.json_dir_root)
+        corpus_file = r"{}/corpus/{}.jsonl".format(eval_args.json_dir_root, data_args.dataset)
+        qrels = pd.read_csv(r"{}/{}.csv".format(label_json_dir, data_args.dataset))
+        qrels["query_id"] = qrels["query_id"].astype(str)
+        qrels["doc_id"] = qrels["doc_id"].astype(str)
+        new2old = create_new_2_old_list(corpus_file)
 
 
-    scores, indices, perf_df = coil_r.retrieve(topk=eval_args.top)
-    perf_df.to_csv(r"{}/coil_perf.csv".format(perf_path), index=False)
-    rh = faiss.ResultHeap(scores.shape[0], eval_args.depth)
-    rh.add_result(-scores.numpy(), indices.numpy())
-    rh.finalize()
-    corpus_scores, corpus_indices = (-rh.D).tolist(), rh.I.tolist()
-    qid_list = list(coil_r.query_dataset.queries.keys())
-    path = r"{}/coil.run.gz".format(rank_path)
+        coil_r = CoilRetriever(model_args, data_args, training_args, eval_args.device)
+        coil_r.set_model()
+        coil_r.set_data_loader()
+        coil_r.load_index()
 
-    with gzip.open(path, 'wt') as fout:
-        for i in range(len(corpus_scores)):
-            q_id = qid_list[i]
-            scores = corpus_scores[i]
-            indices = corpus_indices[i]
-            for j in range(len(scores)):
-                fout.write(f'{q_id} 0 {indices[j]} {j} {scores[j]} run\n')
 
-    rank_results_pd = pd.DataFrame(list(ir_measures.read_trec_run(path)))
+        scores, indices, perf_df = coil_r.retrieve(topk=eval_args.top)
+        perf_df.to_csv(r"{}/coil_perf.csv".format(perf_path), index=False)
+        rh = faiss.ResultHeap(scores.shape[0], eval_args.depth)
+        rh.add_result(-scores.numpy(), indices.numpy())
+        rh.finalize()
+        corpus_scores, corpus_indices = (-rh.D).tolist(), rh.I.tolist()
+        qid_list = list(coil_r.query_dataset.queries.keys())
+        path = r"{}/coil.run.gz".format(rank_path)
 
-    for i, r in rank_results_pd.iterrows():
-        rank_results_pd.at[i, "doc_id"] = new2old[int(r["doc_id"])]
-    eval_results = ir_measures.calc_aggregate(eval_args.measure, qrels, rank_results_pd)
-    eval_results["parameter"] = -1
-    eval_results["index_memory"] = index_memory
-    eval_results["index_dlen"] = len(new2old)
-    eval_df = pd.DataFrame([eval_results])
-    eval_df.to_csv(r"{}/eval.csv".format(eval_results_dir), index=False)
+        with gzip.open(path, 'wt') as fout:
+            for i in range(len(corpus_scores)):
+                q_id = qid_list[i]
+                scores = corpus_scores[i]
+                indices = corpus_indices[i]
+                for j in range(len(scores)):
+                    fout.write(f'{q_id} 0 {indices[j]} {j} {scores[j]} run\n')
+
+        rank_results_pd = pd.DataFrame(list(ir_measures.read_trec_run(path)))
+
+        for i, r in rank_results_pd.iterrows():
+            rank_results_pd.at[i, "doc_id"] = new2old[int(r["doc_id"])]
+        eval_results = ir_measures.calc_aggregate(eval_args.measure, qrels, rank_results_pd)
+        eval_results["parameter"] = -1
+        eval_results["index_memory"] = index_memory
+        eval_results["index_dlen"] = len(new2old)
+        eval_df = pd.DataFrame([eval_results])
+        eval_df.to_csv(r"{}/eval.csv".format(eval_results_dir), index=False)

@@ -19,13 +19,12 @@ from utils.utils_memory import memory_usage, colbert_get_folder_size
 
 checkpoint = './checkpoints/colbertv2.0'
 method = "colbertv2_exhaustive"
-dataset = "nfcorpus"
 
 topk = 30
 measure = [nDCG@10, RR@10, Success@10]
 
 if __name__ == '__main__':
-    dataset_list =["fiqa"]
+    dataset_list =["antique", "arguana", "clinicaltrials","fiqa","nfcorpus","quora","scidocs","scifact"]
     for dataset in dataset_list:
         index_name = f'{dataset}.2bits'
         json_dir_root = r"{}/data".format(os.getcwd())

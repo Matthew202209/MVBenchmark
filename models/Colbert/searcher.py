@@ -58,7 +58,6 @@ class Searcher:
 
         self.ranker = IndexScorer(self.index, use_gpu, is_colbertv2=is_colbertv2)
 
-        self.index_memory = after_memory - before_memory
 
 
     def configure(self, **kw_args):
