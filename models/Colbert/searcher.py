@@ -56,9 +56,8 @@ class Searcher:
         if use_gpu:
             self.checkpoint = self.checkpoint.cuda()
 
-        before_memory = memory_usage()
         self.ranker = IndexScorer(self.index, use_gpu, is_colbertv2=is_colbertv2)
-        after_memory = memory_usage()
+
         self.index_memory = after_memory - before_memory
 
 
@@ -70,9 +69,9 @@ class Searcher:
         bsize = 128 if len(queries) > 128 else None
 
         self.checkpoint.query_tokenizer.query_maxlen = self.config.query_maxlen
-        Q = self.checkpoint.queryFromText(queries, bsize=bsize, to_cpu=True, full_length_search=full_length_search)
+        Q, perf_encode = self.checkpoint.queryFromText(queries, bsize=bsize, to_cpu=True, full_length_search=full_length_search)
 
-        return Q
+        return Q, perf_encode
 
     def search(self, text: str, k=10, filter_fn=None, full_length_search=False):
         Q = self.encode(text, full_length_search=full_length_search)
@@ -94,14 +93,12 @@ class Searcher:
     def search_exhaustive_Q(self, queries: TextQueries, k=10, full_length_search=False):
         queries = Queries.cast(queries)
         queries_ = list(queries.values())
-        perf_encode = perf_event.PerfEvent()
+
         perf_retrival = perf_event.PerfEvent()
         all_scored_pids = []
         all_perf = []
         for q in tqdm(queries_):
-            perf_encode.startCounters()
-            Q = self.encode(q, full_length_search=full_length_search)
-            perf_encode.stopCounters()
+            Q, perf_encode = self.encode(q, full_length_search=full_length_search)
             perf_retrival.startCounters()
             results_zip = zip(*self.ranker.exhaustive(self.config, Q, k))
             perf_retrival.stopCounters()
@@ -122,14 +119,11 @@ class Searcher:
     def search_plaid_Q(self, queries: TextQueries, k=10, full_length_search=False):
         queries = Queries.cast(queries)
         queries_ = list(queries.values())
-        perf_encode = perf_event.PerfEvent()
         perf_retrival = perf_event.PerfEvent()
         all_scored_pids = []
         all_perf = []
         for q in tqdm(queries_):
-            perf_encode.startCounters()
-            Q = self.encode(q, full_length_search=full_length_search)
-            perf_encode.stopCounters()
+            Q, perf_encode = self.encode(q, full_length_search=full_length_search)
             perf_retrival.startCounters()
             results_zip = zip(*self.dense_search(Q, k))
             perf_retrival.stopCounters()
@@ -148,14 +142,11 @@ class Searcher:
     def search_vanilla_colbertv2_Q(self, queries: TextQueries, k=10, full_length_search=False):
         queries = Queries.cast(queries)
         queries_ = list(queries.values())
-        perf_encode = perf_event.PerfEvent()
         perf_retrival = perf_event.PerfEvent()
         all_scored_pids = []
         all_perf = []
         for q in tqdm(queries_):
-            perf_encode.startCounters()
-            Q = self.encode(q, full_length_search=full_length_search)
-            perf_encode.stopCounters()
+            Q, perf_encode = self.encode(q, full_length_search=full_length_search)
             perf_retrival.startCounters()
             results_zip = zip(*self.dense_search_vanilla_colbertv2(Q, k))
             perf_retrival.stopCounters()
@@ -344,15 +335,12 @@ class LadrSearcher(Searcher):
         df_queries = pd.DataFrame(queries.items(), columns=['qid', 'query'])
         initial_res = dict(iter(self.first_pass(df_queries).groupby('qid')))
         queries_ = list(queries.values())
-        perf_encode = perf_event.PerfEvent()
         perf_retrival = perf_event.PerfEvent()
         qids = list(queries.keys())
         all_scored_pids = []
         all_perf = []
         for query_idx, q in enumerate(tqdm(queries_)):
-            perf_encode.startCounters()
-            Q = self.encode(q, full_length_search=full_length_search)
-            perf_encode.stopCounters()
+            Q, perf_encode = self.encode(q, full_length_search=full_length_search)
             perf_retrival.startCounters()
             results_zip = zip(*self.dense_search(Q, k, filter_fn=filter_fn,
                                 initial_res=initial_res.get(qids[query_idx], pd.DataFrame(columns=['docno']))))

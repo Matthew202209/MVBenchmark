@@ -1,15 +1,17 @@
 import argparse
+import os
 
 import pandas as pd
 import ir_measures
 from ir_measures import *
 
 from models.Citadel.citadel_retrieval import CitadelRetrieve
+from utils.utils_memory import get_folder_size
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--corpus_file", type=str, default=r"./data/corpus")
-    parser.add_argument("--dataset", type=str, default=r"fiqa")
+    parser.add_argument("--dataset", type=str, default=r"antique")
     parser.add_argument("--data_dir", type=str, default=r"./data/corpus")
     # parser.add_argument("--ctx_embeddings_dir", type=str, default=r"./cache/Citadel")
     parser.add_argument("--index_dir", type=str, default=r"./index/Citadel")
@@ -53,10 +55,19 @@ if __name__ == '__main__':
     for prune_weight in prune_weights_list:
         args.prune_weight = prune_weight
         print(args.prune_weight)
+        expert_dir = r"{}/{}/{}/{}".format(args.index_dir, args.dataset, r"expert", prune_weight)
+        cls_path = os.path.join(args.index_dir, args.dataset, "cls.pkl")
+        index_memory = get_folder_size(expert_dir)
+        index_memory += os.path.getsize(cls_path)
+
         cr = CitadelRetrieve(args)
         cr.setup()
-        eval_results = cr.run()
+        path = cr.run()
+        eval_results = cr.evaluate(path, index_memory)
         eval_list.append(eval_results)
 
     eval_df = pd.DataFrame(eval_list)
     eval_df.to_csv(r"{}/citadel/{}/eval_results/eval.csv".format(args.results_save_to, args.dataset), index=False)
+
+
+

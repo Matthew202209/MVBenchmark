@@ -102,7 +102,8 @@ class CitadelRetrieve:
 
     def _retrieve(self):
         self._create_save_path()
-        perf = perf_event.PerfEvent()
+        perf_encode = perf_event.PerfEvent()
+        perf_retrieve = perf_event.PerfEvent()
         all_query_match_scores = []
         all_query_inids = []
         all_perf = []
@@ -114,7 +115,10 @@ class CitadelRetrieve:
                         contexts_ids_dict[k] = v.to(self.config.encode_device)
                 batch.data = contexts_ids_dict
                 del contexts_ids_dict
+            perf_encode.startCounters()
             queries_repr = self.context_encoder(batch, topk=1, add_cls=True)
+            perf_encode.stopCounters()
+
             queries_repr = {k: v.detach().cpu() for k, v in queries_repr.items()}
             batch_embeddings = []
             batch_weights = []
@@ -138,32 +142,32 @@ class CitadelRetrieve:
                                 weights[expert_id.item()].append(expert_weight.to(torch.float32))
             batch_embeddings.append(embeddings)
             batch_weights.append(weights)
-            perf.startCounters()
+            # perf.startCounters()
             batch_top_scores, batch_top_ids = self.index.search(batch_cls, batch_embeddings, batch_weights, self.topk)
-            perf.stopCounters()
+            # perf.stopCounters()
             all_query_match_scores.append(batch_top_scores)
             all_query_inids.append(batch_top_ids)
-            cycles = perf.getCounter("cycles")
-            instructions = perf.getCounter("instructions")
-            L1_misses = perf.getCounter("L1-misses")
-            LLC_misses = perf.getCounter("LLC-misses")
-            L1_accesses = perf.getCounter("L1-accesses")
-            LLC_accesses = perf.getCounter("LLC-accesses")
-            branch_misses = perf.getCounter("branch-misses")
-            task_clock = perf.getCounter("task-clock")
-            all_perf.append([cycles, instructions,
-                             L1_misses, LLC_misses,
-                             L1_accesses, LLC_accesses,
-                             branch_misses, task_clock])
+            # cycles = perf.getCounter("cycles")
+            # instructions = perf.getCounter("instructions")
+            # L1_misses = perf.getCounter("L1-misses")
+            # LLC_misses = perf.getCounter("LLC-misses")
+            # L1_accesses = perf.getCounter("L1-accesses")
+            # LLC_accesses = perf.getCounter("LLC-accesses")
+            # branch_misses = perf.getCounter("branch-misses")
+            # task_clock = perf.getCounter("task-clock")
+            # all_perf.append([cycles, instructions,
+            #                  L1_misses, LLC_misses,
+            #                  L1_accesses, LLC_accesses,
+            #                  branch_misses, task_clock])
             # return batch_top_scores.tolist(), batch_top_ids.tolist()
         # post processing
         all_query_match_scores = torch.cat(all_query_match_scores, dim=0)
         all_query_exids = torch.cat(all_query_inids, dim=0)
         self._save_perf(all_perf)
         path = self._save_ranks(all_query_match_scores, all_query_exids)
-        return self.evaluate(path)
+        return path
 
-    def evaluate(self, path):
+    def evaluate(self, path, index_memory):
         qrels = pd.read_csv(r"{}/{}.csv".format(self.config.label_json_dir, self.config.dataset))
         qrels["query_id"] = qrels["query_id"].astype(str)
         qrels["doc_id"] = qrels["doc_id"].astype(str)
@@ -175,6 +179,7 @@ class CitadelRetrieve:
         eval_results = ir_measures.calc_aggregate(self.config.measure, qrels, rank_results_pd)
         eval_results["parameter"] = (str(self.config.prune_weight))
         eval_results["prune_weight"] = self.config.prune_weight
+        eval_results["index_memory"] = index_memory
         return eval_results
 
 

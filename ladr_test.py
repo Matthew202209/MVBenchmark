@@ -17,7 +17,7 @@ from time import time
 import ir_datasets
 
 from process.pro_data import create_new_2_old_list
-from utils.utils_memory import memory_usage
+from utils.utils_memory import memory_usage, get_folder_size, colbert_get_folder_size
 
 checkpoint = '/home/chunming/Projects/Multivector/MVBenchmark/checkpoints/colbertv2.0'
 dataset = "nfcorpus"
@@ -26,7 +26,7 @@ topk = 30
 measure = [nDCG@10, RR@10, Success@10]
 
 if __name__ == '__main__':
-    dataset_list = ["nfcorpus", "quora", "scifact", "scidocs", "antique", "arguana", "clinicaltrials"]
+    dataset_list = ["fiqa", "quora", "scifact", "scidocs", "antique", "arguana", "clinicaltrials"]
     for dataset in dataset_list:
         index_name = f'{dataset}.2bits'
         json_dir_root = r"{}/data".format(os.getcwd())
@@ -34,6 +34,11 @@ if __name__ == '__main__':
         perf_path = r"{}/{}".format(save_dir, "perf_results")
         rank_path = r"{}/{}".format(save_dir, "rank_results")
         eval_results_dir = r"{}/{}".format(save_dir, "eval_results")
+        index_path = r"./index/Colbert/{}.2bits".format(dataset)
+        index_memory = colbert_get_folder_size(index_path, is_colbertv2=False)
+        index_memory += get_folder_size(f'./index/Ladr/{dataset}/{dataset}-n-pisa')
+        index_memory += get_folder_size(f'./index/Ladr/{dataset}/{dataset}.gbm25.128')
+
         if not os.path.exists(perf_path):
             os.makedirs(perf_path)
         if not os.path.exists(rank_path):
@@ -50,13 +55,10 @@ if __name__ == '__main__':
         qrels["query_id"] = qrels["query_id"].astype(str)
         qrels["doc_id"] = qrels["doc_id"].astype(str)
 
-        before_memory = memory_usage()
-        index = PisaIndex(f'/home/chunming/Projects/Multivector/MVBenchmark/index/Ladr/{dataset}/{dataset}-n-pisa')
+        index = PisaIndex(f'./index/Ladr/{dataset}/{dataset}-n-pisa')
         bm25 = index.bm25(num_results=1000)  # number of nearest neighbours
         graph = CorpusGraph.load(
-            f'/home/chunming/Projects/Multivector/MVBenchmark/index/Ladr/{dataset}/{dataset}.gbm25.128')
-        after_memory = memory_usage()
-        sparse_index_memory = after_memory - before_memory
+            f'./index/Ladr/{dataset}/{dataset}.gbm25.128')
         with Run().context(RunConfig(experiment='Colbert')):
             searcher = LadrSearcher(checkpoint=checkpoint, index=index_name, first_pass=bm25, corpus_graph=graph, proactive_steps=0)
 
@@ -89,7 +91,7 @@ if __name__ == '__main__':
                     eval_results["num_results"] = num_results
                     eval_results["num_neighbours"] = num_neighbours
                     eval_results["depth"] = depth
-                    eval_results["index_memory"] = searcher.index_memory + sparse_index_memory
+                    eval_results["index_memory"] = index_memory
                     eval_results["index_dlen"] =  len(new2old)
                     eval_list.append(eval_results)
 

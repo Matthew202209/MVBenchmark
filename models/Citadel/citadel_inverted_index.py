@@ -9,7 +9,7 @@ from tqdm import tqdm
 import torch_scatter
 from torch_scatter import segment_max_coo as scatter_max
 
-from utils.utils_memory import memory_usage
+from utils.utils_memory import memory_usage, get_folder_size
 
 
 class IVFCPUIndex:
@@ -17,11 +17,7 @@ class IVFCPUIndex:
         self.portion = portion
         self.cached_experts = {}
         self.ctx_embeddings_dir = ctx_embeddings_dir
-        before_memory = memory_usage()
-        self.load_context_expert(ctx_embeddings_dir, dataset, prune_weight)
-        after_memory = memory_usage()
-        self.index_memory = after_memory - before_memory
-        print(f"CPU index usage: {self.index_memory  / (1024 ** 3):.4f} GB")
+        self.index_memory = self.load_context_expert(ctx_embeddings_dir, dataset, prune_weight)
         self.sum_scores = torch.zeros((1, corpus_len,), dtype=torch.float32)
         self.max_scores = torch.zeros((corpus_len,), dtype=torch.float32)
         # self.latency = collections.defaultdict(float)
@@ -128,25 +124,19 @@ class IVFCPUIndex:
         cls_path = os.path.join(input_dir, dataset, "cls.pkl")
         memory = 0
         if os.path.exists(cls_path):
-            before_memory = memory_usage()
             with open(cls_path, "rb") as f:
                 self.ctx_cls = pickle.load(f)
             self.ctx_cls = self.ctx_cls.to(torch.float32)
-            after_memory = memory_usage()
             memory += self.ctx_cls.nelement() * self.ctx_cls.element_size()
-            memory1 = after_memory-before_memory
         cache = []
         expert_dir = r"{}/{}/{}/{}".format(input_dir, dataset, r"expert", prune_weight)
         input_paths = sorted(glob.glob(os.path.join(expert_dir, "*.pkl")))
-        before_memory = memory_usage()
         for input_path in tqdm(input_paths):
             expert_id = int(input_path.split("/")[-1].split(".")[0])
             id_data, _, repr_data = self.load_file(input_path)
             cache.append((expert_id, id_data, repr_data))
-        after_memory = memory_usage()
-        memory2 = after_memory - before_memory
-        m = memory1+memory2
-        print(f"CPU index usage: {m/(1024**3):.4f} GB")
+
+
         # sort the index from large to small
         cache = sorted(cache, key=lambda x: -len(x[2]))
         cpu_end = int(len(cache) * self.portion)
@@ -154,7 +144,9 @@ class IVFCPUIndex:
         for k, id_data, repr_data in cache[:cpu_end]:
             memory += id_data.nelement() * id_data.element_size() + repr_data.nelement() * repr_data.element_size()
             self.cached_experts[k] = (id_data.to(torch.int64), repr_data.to(torch.float32))
-        print(f"CPU index usage: {memory/(1024**3):.4f} GB")
+        memory_file = get_folder_size(expert_dir)
+        memory_file += os.path.getsize(cls_path)
+        return memory_file
         # The rest will be stored in disk and loaded into memory on the fly
 
     def load_expert_from_disk(self, expert_id):

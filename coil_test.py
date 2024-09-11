@@ -9,7 +9,7 @@ from ir_measures import *
 
 from models.Coil.coil_retrieval import CoilRetriever
 from process.pro_data import create_new_2_old_list
-from utils.utils_memory import memory_usage
+from utils.utils_memory import memory_usage, get_folder_size
 
 
 def set_model_args():
@@ -85,6 +85,10 @@ if __name__ == '__main__':
     perf_path = r"{}/{}".format(save_dir, "perf_results")
     rank_path = r"{}/{}".format(save_dir, "rank_results")
     eval_results_dir = r"{}/{}".format(save_dir, "eval_results")
+    index_load_path = r"{}/{}".format(data_args.doc_index_save_path, data_args.dataset)
+    index_memory = get_folder_size(index_load_path)
+
+
     if not os.path.exists(perf_path):
         os.makedirs(perf_path)
     if not os.path.exists(rank_path):
@@ -103,11 +107,7 @@ if __name__ == '__main__':
     coil_r = CoilRetriever(model_args, data_args, training_args, eval_args.device)
     coil_r.set_model()
     coil_r.set_data_loader()
-
-    before_memory = memory_usage()
     coil_r.load_index()
-    after_memory = memory_usage()
-    index_memory = after_memory - before_memory
 
 
     scores, indices, perf_df = coil_r.retrieve(topk=eval_args.top)

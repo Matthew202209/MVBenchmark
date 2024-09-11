@@ -17,7 +17,7 @@ from tqdm import tqdm
 from models.XTR import XtrRetriever
 
 from process.pro_data import create_new_2_old_list
-from utils.utils_memory import memory_usage
+from utils.utils_memory import memory_usage, get_folder_size
 
 measure = [nDCG@10, RR@10, Success@10]
 
@@ -42,12 +42,13 @@ if __name__ == '__main__':
     parser.add_argument("--index_dir", type=str, default="index/XTR")
     parser.add_argument("--results_dir", type=str, default="./new_results/xtr")
     parser.add_argument("--load_index", type=bool, default=True)
-
-
     args = parser.parse_args()
+
     perf_path = r"{}/{}/{}".format(args.results_dir, args.dataset, "perf_results")
     rank_path = r"{}/{}/{}".format(args.results_dir, args.dataset, "rank_results")
     eval_results_dir = r"{}/{}/{}".format(args.results_dir, args.dataset, "eval_results")
+    index_dir = r"{}/{}".format(args.index_dir, args.dataset)
+    index_memory = get_folder_size(index_dir)
 
     if not os.path.exists(perf_path):
         os.makedirs(perf_path)
@@ -84,14 +85,12 @@ if __name__ == '__main__':
     # For Scifact + XTR-base-en (P100), this should take about 3 minutes.
     index_dir = f"{args.index_dir}/{args.dataset}"
 
-    before_memory = memory_usage()
     index_num = xtr.load_index(
         index_dir=index_dir,
         code_size=args.code_size,
         nprobe=args.nprobe
     )
-    after_memory = memory_usage()
-    index_memory = after_memory - before_memory
+
 
     ######################################
     print("Step 4 - Run BEIR Evaluation")
