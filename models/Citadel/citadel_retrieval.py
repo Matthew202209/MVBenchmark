@@ -13,6 +13,7 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 from transformers import BertTokenizer, DataCollatorWithPadding
 
+from utils.utils_general import create_this_perf
 from .citadel_dataloader import BenchmarkQueriesDataset, BenchmarkDataset
 from .citadel_inverted_index import IVFCPUIndex, IVFGPUIndex
 from .citadel_model import CITADELEncoder
@@ -103,7 +104,7 @@ class CitadelRetrieve:
     def _retrieve(self):
         self._create_save_path()
         perf_encode = perf_event.PerfEvent()
-        perf_retrieve = perf_event.PerfEvent()
+        perf_retrival = perf_event.PerfEvent()
         all_query_match_scores = []
         all_query_inids = []
         all_perf = []
@@ -117,8 +118,6 @@ class CitadelRetrieve:
                 del contexts_ids_dict
             perf_encode.startCounters()
             queries_repr = self.context_encoder(batch, topk=1, add_cls=True)
-            perf_encode.stopCounters()
-
             queries_repr = {k: v.detach().cpu() for k, v in queries_repr.items()}
             batch_embeddings = []
             batch_weights = []
@@ -142,25 +141,15 @@ class CitadelRetrieve:
                                 weights[expert_id.item()].append(expert_weight.to(torch.float32))
             batch_embeddings.append(embeddings)
             batch_weights.append(weights)
-            # perf.startCounters()
+            perf_encode.stopCounters()
+            perf_retrival.startCounters()
             batch_top_scores, batch_top_ids = self.index.search(batch_cls, batch_embeddings, batch_weights, self.topk)
-            # perf.stopCounters()
+            perf_retrival.stopCounters()
+            this_perf = create_this_perf(perf_encode, perf_retrival)
+            all_perf.append(this_perf)
+
             all_query_match_scores.append(batch_top_scores)
             all_query_inids.append(batch_top_ids)
-            # cycles = perf.getCounter("cycles")
-            # instructions = perf.getCounter("instructions")
-            # L1_misses = perf.getCounter("L1-misses")
-            # LLC_misses = perf.getCounter("LLC-misses")
-            # L1_accesses = perf.getCounter("L1-accesses")
-            # LLC_accesses = perf.getCounter("LLC-accesses")
-            # branch_misses = perf.getCounter("branch-misses")
-            # task_clock = perf.getCounter("task-clock")
-            # all_perf.append([cycles, instructions,
-            #                  L1_misses, LLC_misses,
-            #                  L1_accesses, LLC_accesses,
-            #                  branch_misses, task_clock])
-            # return batch_top_scores.tolist(), batch_top_ids.tolist()
-        # post processing
         all_query_match_scores = torch.cat(all_query_match_scores, dim=0)
         all_query_exids = torch.cat(all_query_inids, dim=0)
         self._save_perf(all_perf)
@@ -184,10 +173,14 @@ class CitadelRetrieve:
 
 
     def _save_perf(self, all_perf: list):
-        columns = ["cycles", "instructions",
-                   "L1_misses", "LLC_misses",
-                   "L1_accesses", "LLC_accesses",
-                   "branch_misses", "task_clock"]
+        columns = ["encode_cycles", "encode_instructions",
+                   "encode_L1_misses", "encode_LLC_misses",
+                   "encode_L1_accesses", "encode_LLC_accesses",
+                   "encode_branch_misses", "encode_task_clock",
+                   "retrieval_cycles", "retrieval_instructions",
+                   "retrieval_L1_misses", "retrieval_LLC_misses",
+                   "retrieval_L1_accesses", "retrieval_LLC_accesses",
+                   "retrieval_branch_misses", "retrieval_task_clock"]
         perf_df = pd.DataFrame(all_perf, columns=columns)
         perf_df.to_csv(r"{}/prune_weight-{}.citadel_perf.csv".format(self.perf_path,
                                                                      str(self.config.prune_weight)),

@@ -115,7 +115,6 @@ class CoilRetriever:
             batch_qtok_ids = [q_id for q_id in batch_qtok_ids if q_id in all_ivl_scatter_maps.keys()]
             batch_qtok_ids = batch_qtok_ids + [self.tokenizer.sep_token_id]
             for batch_id, q_tok_id in enumerate(batch_qtok_ids):
-                a = reps[0]
                 q_tok_reps = reps[0][batch_id+1].unsqueeze(0)
                 tok_reps = tok_id_2_reps[q_tok_id]
                 tok_scores = torch.matmul(q_tok_reps, tok_reps.transpose(0, 1)).relu_()
