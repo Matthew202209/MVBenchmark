@@ -13,6 +13,10 @@ QUERY_DIR = {
     "antique": "antique/train/split200-valid",
     "arguana": 'beir/arguana',
     "clinicaltrials": 'clinicaltrials/2021/trec-ct-2021',
+    "lotte": "lotte/pooled/dev/forum",
+    "msmarco-passage":"msmarco-passage/trec-dl-2019",
+    "dbpedia-entity":"beir/dbpedia-entity/test",
+    "car":"car/v1.5/test200"
 }
 
 
@@ -48,10 +52,10 @@ def create_json():
 
 if __name__ == '__main__':
     root = r"../data"
-    dataset_list = ["fiqa","quora", "scifact", "scidocs", "antique","arguana","clinicaltrials"]
+    dataset_list = ["lotte", "msmarco-passage", "dbpedia-entity", "car"]
     for dataset in dataset_list:
-        label_save_path = r"/home/chunming/Projects/Multivector/MVBenchmark/data/label".format(root)
-        query_save_path = r"/home/chunming/Projects/Multivector/MVBenchmark/data/query".format(root)
+        label_save_path = r"/home/chunming/data/chunming/projects/MVBenchmark/data/label"
+        query_save_path = r"/home/chunming/data/chunming/projects/MVBenchmark/data/query"
 
         if not os.path.exists(label_save_path):
             os.mkdir(label_save_path)

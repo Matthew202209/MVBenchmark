@@ -22,7 +22,9 @@ def colbert_get_folder_size(folder_path, is_colbertv2 = False):
     total_size = 0
     for root, dirs, files in os.walk(folder_path):
         for file in files:
-            if file == "metadata.json" or "plan.json":
+            if "metadata" in list(file.split('.')):
+                continue
+            if "plan" in list(file.split('.')):
                 continue
             if file == "ivf.ori.pt":
                 if not is_colbertv2:

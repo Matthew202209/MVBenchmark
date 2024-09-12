@@ -49,10 +49,11 @@ if __name__ == '__main__':
     parser.add_argument("--measure", type=list, default=[nDCG@10, RR@10, Success@10])
     args = parser.parse_args()
     ######################################
-    args.corpus_file = r"{}/{}.jsonl".format(args.data_dir, args.dataset)
-    dataset_list =["quora"]
+
+    dataset_list = ["antique", "arguana", "clinicaltrials", "fiqa", "nfcorpus", "quora", "scidocs", "scifact"]
     for dataset in dataset_list:
         args.dataset = dataset
+        args.corpus_file = r"{}/{}.jsonl".format(args.data_dir, args.dataset)
         print(args.dataset)
         prune_weights_list = [0.6, 0.8, 1.0, 1.2, 1.4]
         eval_list = []

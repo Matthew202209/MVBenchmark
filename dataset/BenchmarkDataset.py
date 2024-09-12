@@ -1,3 +1,4 @@
+import ir_datasets
 import ujson
 from torch.utils.data import Dataset
 from tqdm import tqdm
@@ -18,8 +19,6 @@ class BenchmarkDataset(Dataset):
                 if '_id' in line.keys():
                     self.corpus[line.get('_id')] = line.get('text')
                 elif "doc_id" in line.keys():
-                    if line.get("text") == "":
-                        print(1)
                     self.corpus[line.get("doc_id")] = line.get("text")
 
     def load_corpus(self):

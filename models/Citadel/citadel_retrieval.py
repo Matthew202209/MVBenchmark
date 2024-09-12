@@ -160,6 +160,7 @@ class CitadelRetrieve:
         qrels = pd.read_csv(r"{}/{}.csv".format(self.config.label_json_dir, self.config.dataset))
         qrels["query_id"] = qrels["query_id"].astype(str)
         qrels["doc_id"] = qrels["doc_id"].astype(str)
+
         encode_dataset = BenchmarkDataset(self.config, None)
         new_2_old = list(encode_dataset.corpus.keys())
         rank_results_pd = pd.DataFrame(list(ir_measures.read_trec_run(path)))
@@ -169,6 +170,7 @@ class CitadelRetrieve:
         eval_results["parameter"] = (str(self.config.prune_weight))
         eval_results["prune_weight"] = self.config.prune_weight
         eval_results["index_memory"] = index_memory
+        eval_results["index_dlen"] = len(new_2_old)
         return eval_results
 
 
