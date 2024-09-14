@@ -1,9 +1,47 @@
+import os
+import pickle
+
 import torch
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 from transformers import BertTokenizer, DataCollatorWithPadding
+from typing import Dict, List, Optional, Union
 
 from dataset.BenchmarkDataset import BenchmarkQueriesDataset
 from models.SLIM.slim_encoder import SlimEncoder
+import scipy
+from pyserini.pyclass import autoclass, JFloat, JInt, JArrayList, JHashMap
+JSimpleImpactSearcher = autoclass('io.anserini.search.SimpleImpactSearcher')
+JScoredDoc = autoclass('io.anserini.search.ScoredDoc')
+
+
+class SlimSearcher:
+    def __init__(self, encoded_corpus):
+        print("Loading sparse corpus vectors for fast reranking...")
+        with open(os.path.join(encoded_corpus, "sparse_range.pkl"), "rb") as f:
+            self.sparse_ranges = pickle.load(f)
+        sparse_vecs = scipy.sparse.load_npz(os.path.join(encoded_corpus, "sparse_vec.npz"))
+        self.sparse_vecs = [sparse_vecs[start:end] for start, end in tqdm(self.sparse_ranges)]
+
+    def search(self, q: str, k: int = 10, fields=dict()) -> List[JScoredDoc]:
+        jfields = JHashMap()
+        for (field, boost) in fields.items():
+            jfields.put(field, JFloat(boost))
+
+        fusion_encoded_query, sparse_encoded_query = self.query_encoder.encode(q, return_sparse=True)
+        jquery = JHashMap()
+        for (token, weight) in fusion_encoded_query.items():
+            if token in self.idf and self.idf[token] > self.min_idf:
+                jquery.put(token, JInt(weight))
+
+        if self.sparse_vecs is not None:
+            search_k = k * (self.min_idf + 1)
+        if not fields:
+            hits = self.object.search(jquery, search_k)
+        else:
+            hits = self.object.searchFields(jquery, jfields, search_k)
+        hits = self.fast_rerank([sparse_encoded_query], {0: hits}, k)[0]
+        return hits
 
 
 class SLIMRetrieval:

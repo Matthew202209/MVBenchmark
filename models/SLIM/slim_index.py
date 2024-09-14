@@ -1,6 +1,8 @@
 import glob
 import os
 import pickle
+import shutil
+
 import scipy
 import jsonlines
 import numpy as np
@@ -36,7 +38,8 @@ class SlimIndex:
             self.vocab.append(line.strip())
 
     def run(self):
-        self._encode()
+        # self._encode()
+        self._compress()
 
 
     def _prepare_data(self):
@@ -161,10 +164,10 @@ class SlimIndex:
 
 
     def _compress(self, threshold=0.0):
-        file_path = r"{}/{}/tok".format(self.ctx_embeddings_dir,
+        file_path = r"{}/Slim/{}/tok".format(self.ctx_embeddings_dir,
                                               self.config.dataset)
-        output_dir = r"{}/{}/expert".format(self.ctx_embeddings_dir, self.config.dataset)
-        input_paths = sorted(glob.glob(file_path))
+        output_dir = r"{}/Slim/{}".format(self.ctx_embeddings_dir, self.config.dataset)
+        input_paths = sorted(glob.glob(r"{}/*.pt".format(file_path)))
         total_sparse_vecs = []
         sparse_ranges = []
         start = 0
@@ -193,8 +196,10 @@ class SlimIndex:
         with open(output_path, "wb") as f:
             pickle.dump(sparse_ranges, f)
 
+        # shutil.rmtree(file_path)
+
     def save_sparse_vecs(self, sparse_vecs, set_id):
-        tok_dir = r"{}/{}/tok".format(self.ctx_embeddings_dir, self.config.dataset)
+        tok_dir = r"{}/Slim/{}/tok".format(self.ctx_embeddings_dir, self.config.dataset)
         os.makedirs(tok_dir, exist_ok=True)
         sparse_embedding_path = os.path.join(
             tok_dir, f"sparse_embedding_{set_id}.pt")
@@ -202,14 +207,12 @@ class SlimIndex:
 
 
     def save_dense_vecs(self, dense_vecs, set_id):
-        doc_dir = r"{}/{}/doc".format(self.ctx_embeddings_dir, self.config.dataset)
+        doc_dir = r"{}/Slim/{}/doc".format(self.ctx_embeddings_dir, self.config.dataset)
         os.makedirs(doc_dir, exist_ok=True)
         embedding_path = os.path.join(
             doc_dir, f"context_embedding_{set_id}.jsonl")
         with jsonlines.open(embedding_path, 'w') as writer:
             writer.write_all(dense_vecs)
-
-
 
 
     def save_encode(self, contexts_reprs):
