@@ -25,7 +25,6 @@ if __name__ == '__main__':
     parser.add_argument("--weight_threshold", type=float, default=0)
     parser.add_argument("--content_topk", type=float, default=5)
     parser.add_argument("--prune_weights_list", type=list, default=[0,0.3,0.6,0.9,1.2,1.5])
-
     parser.add_argument("--cls_dim", type=float, default=128)
     parser.add_argument("--dim", type=float, default=32)
     parser.add_argument("--sub_vec_dim", type=float, default=4)

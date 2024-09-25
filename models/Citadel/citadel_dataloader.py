@@ -64,7 +64,6 @@ class CitadelQueryDataset(Dataset):
     def __getitem__(self, item):
         queries_text = list(self.queries.values())[item]
         ctx_tensors = self.text_transform(queries_text)
-        print(queries_text)
         return ctx_tensors
 
 

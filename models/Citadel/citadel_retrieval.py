@@ -3,6 +3,7 @@ import collections
 import gzip
 import json
 import os
+import perf_event
 
 import faiss
 import numpy as np
@@ -20,6 +21,7 @@ from models.Citadel.citadel_model import CITADELEncoder
 from models.Citadel.citadel_searcher import IVFCPUIndex
 from models.Citadel.citadel_transformer import HFTransform
 from models.Citadel.citadel_utils import process_check_point
+from utils.utils_general import create_this_perf
 
 
 class CitadelRetrieve:
@@ -27,7 +29,8 @@ class CitadelRetrieve:
         self.config = config
         self.transformer_model_dir = self.config.transformer_model_dir
         self.checkpoint_path = self.config.check_point_path
-        self.topk = config.content_topk
+        self.content_topk = str(config.content_topk)
+        self.retrieved_topk = config.retrieved_topk
         self.perf_path = None
         self.rank_path = None
         self.eval_path = None
@@ -69,7 +72,7 @@ class CitadelRetrieve:
 
     def _sep_up_index(self):
         self.index = IVFCPUIndex(self.config.portion, self.meta_data["num_docs"], self.config.index_dir,
-                                 self.config.dataset, self.config.content_topk, self.config.prune_weight)
+                                 self.config.dataset, self.content_topk, self.config.prune_weight)
 
     def setup(self):
         self._load_meta_data()
@@ -78,7 +81,7 @@ class CitadelRetrieve:
         self._sep_up_index()
 
     def _load_meta_data(self):
-        meta_data_path = r"{}/{}.json".format(self.config.ctx_embeddings_dir, self.config.dataset)
+        meta_data_path = r"{}/{}/metadata.json".format(self.config.ctx_embeddings_dir, self.config.dataset)
         with open(meta_data_path, "r") as f:
             self.meta_data = json.load(f)
 
@@ -97,8 +100,11 @@ class CitadelRetrieve:
 
     def _retrieve(self):
         self._create_save_path()
+        perf_encode = perf_event.PerfEvent()
+        perf_retrival = perf_event.PerfEvent()
         all_query_match_scores = []
         all_query_inids = []
+        all_perf = []
         for batch in tqdm(self.encode_loader):
             contexts_ids_dict = {}
             with torch.cuda.amp.autocast():
@@ -107,7 +113,7 @@ class CitadelRetrieve:
                         contexts_ids_dict[k] = v.to(self.config.encode_device)
                 batch.data = contexts_ids_dict
                 del contexts_ids_dict
-
+            perf_encode.startCounters()
             queries_repr = self.context_encoder(batch, topk=1, add_cls=True)
             queries_repr = {k: v.detach() for k, v in queries_repr.items()}
             batch_embeddings = []
@@ -137,8 +143,14 @@ class CitadelRetrieve:
                                     weights[expert_id.item()].append(expert_weight.to(torch.float16))
                 batch_embeddings.append(embeddings)
                 batch_weights.append(weights)
+            perf_encode.stopCounters()
 
-            batch_top_scores, batch_top_ids = self.index.search(batch_cls, batch_embeddings, batch_weights, self.topk)
+            perf_retrival.startCounters()
+            batch_top_scores, batch_top_ids = self.index.search(batch_cls, batch_embeddings, 
+                                                                batch_weights, self.retrieved_topk)
+            perf_retrival.stopCounters()
+            this_perf = create_this_perf(perf_encode, perf_retrival)
+            all_perf.append(this_perf)
             all_query_match_scores.append(batch_top_scores)
             all_query_inids.append(batch_top_ids)
 
@@ -146,7 +158,7 @@ class CitadelRetrieve:
 
         all_query_match_scores = np.concatenate(all_query_match_scores, axis=0)
         all_query_exids = np.concatenate(all_query_inids, axis=0)
-
+        self._save_perf(all_perf)
         path = self._save_ranks(all_query_match_scores, all_query_exids)
         return path
 
@@ -154,7 +166,7 @@ class CitadelRetrieve:
         self.setup()
         self._prepare_data()
         path = self._retrieve()
-        self.evaluate(path)
+        return path
 
     def evaluate(self, path, index_memory=None):
         qrels = pd.read_csv(r"{}/{}.csv".format(self.config.label_json_dir, self.config.dataset))
@@ -167,21 +179,24 @@ class CitadelRetrieve:
         for i, r in rank_results_pd.iterrows():
             rank_results_pd.at[i, "doc_id"] = new_2_old[int(r["doc_id"])]
         eval_results = ir_measures.calc_aggregate(self.config.measure, qrels, rank_results_pd)
+
         eval_results["parameter"] = (str(self.config.prune_weight))
         eval_results["prune_weight"] = self.config.prune_weight
+        eval_results["content_topk"] = self.config.content_topk
         eval_results["index_memory"] = index_memory
         eval_results["index_time"] = self.meta_data["index_time"]
         eval_results["num_docs"] = self.meta_data["num_docs"]
-        eval_results["avgg_num_tokens"] = self.meta_data["avgg_num_tokens"]
+        eval_results["avg_num_tokens"] = self.meta_data["avg_num_tokens"]
         eval_results["total_num_tokens"] = self.meta_data["total_num_tokens"]
-        print(eval_results)
         return eval_results
 
     def _save_ranks(self, scores, indices):
-        path = r"{}/Citadel.run.gz".format(self.rank_path)
-        rh = faiss.ResultHeap(scores.shape[0], self.topk)
+        path = r"{}/citadel-content_topk-{}-prune_weight-{}.run.gz".format(self.rank_path,
+                                                                   str(self.content_topk),
+                                                                   str(self.config.prune_weight))
+
+        rh = faiss.ResultHeap(scores.shape[0], self.retrieved_topk)
         if self.device == "cpu":
-            # rh.add_result(-scores.numpy(), indices.numpy())
             rh.add_result(-scores, indices)
         else:
             scores = scores.to("cpu").to(torch.float32)
@@ -199,3 +214,17 @@ class CitadelRetrieve:
                 for j in range(len(scores)):
                     fout.write(f'{q_id} 0 {indices[j]} {j} {scores[j]} run\n')
         return path
+
+    def _save_perf(self, all_perf: list):
+        columns = ["encode_cycles", "encode_instructions",
+                   "encode_L1_misses", "encode_LLC_misses",
+                   "encode_L1_accesses", "encode_LLC_accesses",
+                   "encode_branch_misses", "encode_task_clock",
+                   "retrieval_cycles", "retrieval_instructions",
+                   "retrieval_L1_misses", "retrieval_LLC_misses",
+                   "retrieval_L1_accesses", "retrieval_LLC_accesses",
+                   "retrieval_branch_misses", "retrieval_task_clock"]
+        perf_df = pd.DataFrame(all_perf, columns=columns)
+        perf_df.to_csv(r"{}/content_topk-{}-prune_weight-{}.citadel_perf.csv".format(self.perf_path,
+                                                                                     str(self.content_topk),
+                                                                                     str(self.config.prune_weight)), index=False)
