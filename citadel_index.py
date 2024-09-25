@@ -7,7 +7,7 @@ if __name__ == '__main__':
     parser.add_argument("--root_dir", type=str, default=r"./data/corpus")
     parser.add_argument("--dataset", type=str, default=r"nfcorpus")
     parser.add_argument("--metadata_dir", type=str, default=r"./data/metadata")
-    parser.add_argument("--ctx_embeddings_dir", type=str, default=r"./index")
+    parser.add_argument("--ctx_embeddings_dir", type=str, default=r"./index/Citadel")
     parser.add_argument("--transformer_model_dir", type=str, default=r"/home/chunming/data/chunming/projects/MVBenchmark/checkpoints/bert-base-uncased")
 
     parser.add_argument("--encode_batch_size", type=int, default=16)
@@ -35,7 +35,6 @@ if __name__ == '__main__':
     parser.add_argument("--num", type=int, default=-1)
 
     args = parser.parse_args()
-
     citadel = CitadelIndex(args)
     citadel.setup()
     citadel.run()

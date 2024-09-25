@@ -34,15 +34,15 @@ class CitadelIndex:
         self._prepare_model()
 
     def run(self):
-        # batch_results_list, batch_cls_list = self._encode()
-        # self.save_encode(batch_results_list, batch_cls_list)
-        # self.prune_in_diff_weights()
+        batch_results_list, batch_cls_list = self._encode()
+        self.save_encode(batch_results_list, batch_cls_list)
+        self.prune_in_diff_weights()
         self.save_metadata()
 
     def save_metadata(self):
         metadata_file_path = r"{}/{}/metadata.json".format(self.ctx_embeddings_dir, self.config.dataset)
         self._load_meta_data()
-        # self.meta_data["index_time"] = self.latency["index_time"]
+        self.meta_data["index_time"] = self.latency["index_time"]
 
         with open(metadata_file_path, 'w', encoding='utf-8') as json_file:
             json.dump(self.meta_data, json_file, ensure_ascii=False, indent=4)
@@ -76,7 +76,7 @@ class CitadelIndex:
     def _encode(self):
         batch_results_list = []
         batch_cls_list = []
-        tic = time.perf_counter()
+        start_time = time.time()
         for batch in tqdm(self.encode_loader):
             corpus_ids = list(batch.data["corpus_ids"][0])
             contexts_ids_dict = {}
@@ -115,8 +115,8 @@ class CitadelIndex:
                 batch_results.append(results)
             batch_results_list.append(batch_results)
             batch_cls_list.append(batch_cls)
-        toc = time.perf_counter()
-        self.latency["index_time"] = toc - tic
+        end_time = time.time()
+        self.latency["index_time"] = end_time - start_time
         return batch_results_list, batch_cls_list
 
     def load_context_expert(self, expert_file_name):
@@ -211,7 +211,7 @@ class CitadelIndex:
         if len(cls_embeddings) > 0:
             cls_embeddings = torch.cat(cls_embeddings, 0).to(torch.float32)
             cls_out_path = os.path.join(
-                self.ctx_embeddings_dir, self.config.dataset, self.content_topk, f"cls.pkl")
+                self.ctx_embeddings_dir, self.config.dataset, f"cls.pkl")
             print(f"\nWriting tensors to {cls_out_path}")
             save_file((cls_out_path, cls_embeddings))
 

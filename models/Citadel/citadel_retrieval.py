@@ -1,6 +1,7 @@
 import argparse
 import collections
 import gzip
+import json
 import os
 
 import faiss
@@ -8,13 +9,16 @@ import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import DataLoader
+from torch.utils.hipify.hipify_python import meta_data
 from tqdm import tqdm
 
 import ir_measures
 from ir_measures import *
 
+from models.Citadel.citadel_dataloader import CitadelQueryDataset, CitadelDataset
 from models.Citadel.citadel_model import CITADELEncoder
 from models.Citadel.citadel_searcher import IVFCPUIndex
+from models.Citadel.citadel_transformer import HFTransform
 from models.Citadel.citadel_utils import process_check_point
 
 
@@ -29,6 +33,7 @@ class CitadelRetrieve:
         self.eval_path = None
         self.context_encoder = None
         self.index = None
+        self.metadata = None
         self.device = device
 
 
@@ -63,15 +68,19 @@ class CitadelRetrieve:
         self.context_encoder.to(self.config.device)
 
     def _sep_up_index(self):
-        corpus_len = 522931
-        index_dir = r"{}/{}/expert".format(self.config.index_dir, self.config.dataset)
-        self.index = IVFCPUIndex(self.config.portion, corpus_len, index_dir)
-
+        self.index = IVFCPUIndex(self.config.portion, self.meta_data["num_docs"], self.config.index_dir,
+                                 self.config.dataset, self.config.content_topk, self.config.prune_weight)
 
     def setup(self):
+        self._load_meta_data()
         checkpoint_dict = self._load_checkpoint()
         self._set_up_model(checkpoint_dict)
         self._sep_up_index()
+
+    def _load_meta_data(self):
+        meta_data_path = r"{}/{}.json".format(self.config.ctx_embeddings_dir, self.config.dataset)
+        with open(meta_data_path, "r") as f:
+            self.meta_data = json.load(f)
 
     def _prepare_data(self):
         transform = HFTransform(self.config.transformer_model_dir, self.config.max_seq_len)
@@ -161,10 +170,12 @@ class CitadelRetrieve:
         eval_results["parameter"] = (str(self.config.prune_weight))
         eval_results["prune_weight"] = self.config.prune_weight
         eval_results["index_memory"] = index_memory
-        eval_results["index_dlen"] = len(new_2_old)
+        eval_results["index_time"] = self.meta_data["index_time"]
+        eval_results["num_docs"] = self.meta_data["num_docs"]
+        eval_results["avgg_num_tokens"] = self.meta_data["avgg_num_tokens"]
+        eval_results["total_num_tokens"] = self.meta_data["total_num_tokens"]
         print(eval_results)
         return eval_results
-
 
     def _save_ranks(self, scores, indices):
         path = r"{}/Citadel.run.gz".format(self.rank_path)

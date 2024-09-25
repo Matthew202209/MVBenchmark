@@ -9,11 +9,11 @@ from tqdm import tqdm
 import torch_scatter
 
 class IVFCPUIndex:
-    def __init__(self, portion, corpus_len, ctx_embeddings_dir):
+    def __init__(self, portion, corpus_len, ctx_embeddings_dir, dataset, content_topk, prune_weight):
         self.portion = portion
         self.cached_experts = {}
         self.ctx_embeddings_dir = ctx_embeddings_dir
-        self.load_context_expert(ctx_embeddings_dir)
+        self.load_context_expert(ctx_embeddings_dir, dataset, content_topk, prune_weight)
         self.sum_scores = torch.zeros((1, corpus_len,), dtype=torch.float32)
         self.max_scores = torch.zeros((corpus_len,), dtype=torch.float32)
         self.latency = collections.defaultdict(float)
@@ -133,9 +133,11 @@ class IVFCPUIndex:
         q_repr = q_repr.to(torch.float32)
         return torch.matmul(q_repr, ctx_repr.T)
 
-    def load_context_expert(self, input_dir):
+    def load_context_expert(self, input_dir, dataset, content_topk, prune_weight):
         print("Loading Index...")
-        cls_path = os.path.join(os.path.dirname(input_dir), "cls.pkl")
+
+
+        cls_path = os.path.join(input_dir, dataset, "cls.pkl")
         cpu_memory = 0
         if os.path.exists(cls_path):
             with open(cls_path, "rb") as f:
@@ -147,7 +149,7 @@ class IVFCPUIndex:
             cpu_memory += self.ctx_cls.nelement() * self.ctx_cls.element_size()
 
         cache = []
-        input_paths = sorted(glob.glob(os.path.join(input_dir, "*.pkl")))
+        input_paths = sorted(glob.glob(os.path.join(input_dir, dataset, content_topk, "expert", prune_weight, "*.pkl")))
         for input_path in tqdm(input_paths):
             expert_id = int(input_path.split("/")[-1].split(".")[0])
             id_data, _, repr_data = self.load_file(input_path)
