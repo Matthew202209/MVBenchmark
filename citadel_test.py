@@ -14,12 +14,12 @@ if __name__ == '__main__':
     parser.add_argument("--dataset", type=str, default=r"antique")
     parser.add_argument("--data_dir", type=str, default=r"./data/corpus")
     # parser.add_argument("--ctx_embeddings_dir", type=str, default=r"./cache/Citadel")
-    parser.add_argument("--index_dir", type=str, default=r"./index/Citadel")
+    parser.add_argument("--index_dir", type=str, default=r"./index/test")
 
     parser.add_argument("--transformer_model_dir", type=str, default=r"./checkpoints/bert-base-uncased")
 
     parser.add_argument("--encode_batch_size", type=int, default=32)
-    parser.add_argument("--max_seq_len", type=int, default=300)
+    parser.add_argument("--max_seq_len", type=int, default=500)
     parser.add_argument("--dataloader_num_workers", type=int, default=1)
 
     parser.add_argument("--dropout", type=float, default=0.1)
@@ -43,19 +43,19 @@ if __name__ == '__main__':
 
     parser.add_argument("--query_json_dir", type=str, default=r'./data/query')
     parser.add_argument("--label_json_dir", type=str, default=r'./data/label')
-    parser.add_argument("--results_save_to", type=str, default=r'./results')
+    parser.add_argument("--results_save_to", type=str, default=r'./results_test')
     parser.add_argument("--portion", type=int, default=1)
     parser.add_argument("--topk", type=int, default=10)
     parser.add_argument("--measure", type=list, default=[nDCG@10, RR@10, Success@10])
     args = parser.parse_args()
     ######################################
 
-    dataset_list = ["antique", "arguana", "clinicaltrials", "fiqa", "nfcorpus", "quora", "scidocs", "scifact"]
+    dataset_list = ["fiqa"]
     for dataset in dataset_list:
         args.dataset = dataset
         args.corpus_file = r"{}/{}.jsonl".format(args.data_dir, args.dataset)
         print(args.dataset)
-        prune_weights_list = [0.6, 0.8, 1.0, 1.2, 1.4]
+        prune_weights_list = [0]
         eval_list = []
         for prune_weight in prune_weights_list:
             args.prune_weight = prune_weight

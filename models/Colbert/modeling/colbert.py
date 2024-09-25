@@ -142,11 +142,11 @@ def colbert_score_reduce(scores_padded, D_mask, config: ColBERTConfig):
         K1 = config.query_maxlen // 2
         K2 = 8
 
-        A = scores[:, :config.query_maxlen].topk(K1, dim=-1).values.sum(-1)
+        A = scores[:, :config.query_maxlen].content_topk(K1, dim=-1).values.sum(-1)
         B = 0
 
         if K2 <= scores.size(1) - config.query_maxlen:
-            B = scores[:, config.query_maxlen:].topk(K2, dim=-1).values.sum(1)
+            B = scores[:, config.query_maxlen:].content_topk(K2, dim=-1).values.sum(1)
 
         return A + B
 

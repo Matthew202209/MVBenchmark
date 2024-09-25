@@ -17,7 +17,7 @@ class CandidateGeneration:
         if ncells == 1:
             cells = scores.argmax(dim=0, keepdim=True).permute(1, 0)
         else:
-            cells = scores.topk(ncells, dim=0, sorted=False).indices.permute(1, 0)  # (32, ncells)
+            cells = scores.content_topk(ncells, dim=0, sorted=False).indices.permute(1, 0)  # (32, ncells)
         #import pdb; pdb.set_trace()
         cells = cells.flatten().contiguous()  # (32 * ncells,)
         cells = cells.unique(sorted=False)
@@ -35,9 +35,9 @@ class CandidateGeneration:
     def generate_candidate_eids_colbertv2(self, Q, nprobe):
 
         if self.use_gpu:
-            cells = (self.codec.centroids @ Q.T).topk(nprobe, dim=0, sorted=False).indices.permute(1, 0)  # (32, nprobe)
+            cells = (self.codec.centroids @ Q.T).content_topk(nprobe, dim=0, sorted=False).indices.permute(1, 0)  # (32, nprobe)
         else:
-            cells = (self.codec.centroids.to("cpu").to(torch.float32) @ Q.T).topk(nprobe, dim=0, sorted=False).indices.permute(1, 0)  # (32, nprobe)
+            cells = (self.codec.centroids.to("cpu").to(torch.float32) @ Q.T).content_topk(nprobe, dim=0, sorted=False).indices.permute(1, 0)  # (32, nprobe)
 
         cells = cells.flatten().contiguous()  # (32 * nprobe,)
         cells = cells.unique(sorted=False)
@@ -166,6 +166,6 @@ class CandidateGeneration:
         assert scores_lb.size(0) == pids.size(0)
 
         if scores_lb.size(0) > ncandidates:
-            pids = pids[scores_lb.topk(ncandidates, dim=-1, sorted=True).indices]
+            pids = pids[scores_lb.content_topk(ncandidates, dim=-1, sorted=True).indices]
 
         return pids

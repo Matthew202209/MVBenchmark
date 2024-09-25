@@ -41,7 +41,7 @@ class CITADELEncoder(nn.Module):
                 linear,
             )
 
-    def forward(self, tokens, topk=1, add_cls=False):
+    def forward(self, tokens, topk=1, add_cls=True):
         ret = {}
         # make it transformer 4.x compatible
         outputs = self.transformer(**tokens, return_dict=True)

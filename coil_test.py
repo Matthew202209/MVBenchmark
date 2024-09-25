@@ -76,12 +76,12 @@ if __name__ == '__main__':
     data_args = set_data_args()
     training_args = training_args()
     eval_args = evaluation_args()
-    dataset_list = ["antique", "arguana", "clinicaltrials", "fiqa", "nfcorpus", "quora", "scidocs", "scifact"]
+    dataset_list = ["nfcorpus"]
     for dataset in dataset_list:
 
         data_args.dataset = dataset
 
-        save_dir = r"{}/coil/{}".format(eval_args.results_save_to, data_args.dataset)
+        save_dir = r"{}/coil_test/{}".format(eval_args.results_save_to, data_args.dataset)
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
         perf_path = r"{}/{}".format(save_dir, "perf_results")

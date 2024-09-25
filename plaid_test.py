@@ -24,7 +24,7 @@ topk = 30
 measure = [nDCG@10, RR@10, Success@10]
 
 if __name__ == '__main__':
-    dataset_list =  ["antique", "arguana", "clinicaltrials", "fiqa", "nfcorpus", "quora", "scidocs", "scifact"]
+    dataset_list =  ["lotte_pooled_dev"]
     for dataset in dataset_list:
         index_name = f'{dataset}.2bits'
         json_dir_root = r"{}/data".format(os.getcwd())

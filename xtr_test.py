@@ -44,7 +44,7 @@ if __name__ == '__main__':
     parser.add_argument("--results_dir", type=str, default="./results/xtr")
     parser.add_argument("--load_index", type=bool, default=True)
     args = parser.parse_args()
-    dataset_list =  ["antique", "arguana", "clinicaltrials", "fiqa", "nfcorpus", "quora", "scidocs", "scifact"]
+    dataset_list = ["lotte_pooled_dev"]
     for dataset in dataset_list:
         args.dataset = dataset
         perf_path = r"{}/{}/{}".format(args.results_dir, args.dataset, "perf_results")

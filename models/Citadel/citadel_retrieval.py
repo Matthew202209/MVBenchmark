@@ -1,30 +1,29 @@
+import argparse
 import collections
-import json
-import os
-import perf_event
-
-import ir_datasets
-import ir_measures
-import pandas as pd
 import gzip
-import torch
-import faiss
-from tqdm import tqdm
-from torch.utils.data import DataLoader
-from transformers import BertTokenizer, DataCollatorWithPadding
+import os
 
-from utils.utils_general import create_this_perf
-from .citadel_dataloader import BenchmarkQueriesDataset, BenchmarkDataset
-from .citadel_inverted_index import IVFCPUIndex, IVFGPUIndex
-from .citadel_model import CITADELEncoder
-from .citadel_utils import process_check_point
+import faiss
+import numpy as np
+import pandas as pd
+import torch
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+
+import ir_measures
+from ir_measures import *
+
+from models.Citadel.citadel_model import CITADELEncoder
+from models.Citadel.citadel_searcher import IVFCPUIndex
+from models.Citadel.citadel_utils import process_check_point
+
 
 class CitadelRetrieve:
     def __init__(self, config, device="cpu"):
         self.config = config
         self.transformer_model_dir = self.config.transformer_model_dir
         self.checkpoint_path = self.config.check_point_path
-        self.topk = config.topk
+        self.topk = config.content_topk
         self.perf_path = None
         self.rank_path = None
         self.eval_path = None
@@ -32,11 +31,6 @@ class CitadelRetrieve:
         self.index = None
         self.device = device
 
-    def setup(self):
-        self._load_meta_data()
-        checkpoint_dict = self._load_checkpoint()
-        self._set_up_model(checkpoint_dict)
-        self._sep_up_index()
 
     def _create_save_path(self):
         save_dir = r"{}/citadel/{}".format(self.config.results_save_to, self.config.dataset)
@@ -52,15 +46,12 @@ class CitadelRetrieve:
         if not os.path.exists(self.eval_path):
             os.makedirs(self.eval_path)
 
-    def _load_meta_data(self):
-        meta_data_path = r"{}/{}/metadata.json".format(self.config.index_dir, self.config.dataset)
-        with open(meta_data_path, "r") as f:
-            self.meta_data = json.load(f)
 
     def _load_checkpoint(self):
         checkpoint_dict = torch.load(self.config.check_point_path)["state_dict"]
         checkpoint_dict = process_check_point(checkpoint_dict)
         return checkpoint_dict
+
 
     def _set_up_model(self, checkpoint_dict):
         self.context_encoder = CITADELEncoder(model_path=self.config.transformer_model_dir,
@@ -72,42 +63,33 @@ class CitadelRetrieve:
         self.context_encoder.to(self.config.device)
 
     def _sep_up_index(self):
+        corpus_len = 522931
+        index_dir = r"{}/{}/expert".format(self.config.index_dir, self.config.dataset)
+        self.index = IVFCPUIndex(self.config.portion, corpus_len, index_dir)
 
-        if self.device == "cpu":
-            self.index = IVFCPUIndex(self.config.portion, self.meta_data["corpus_len"],
-                                     self.config.index_dir,
-                                     self.config.dataset,
-                                     self.config.prune_weight)
-        elif self.device == "gpu":
-            self.index = IVFGPUIndex(self.config.portion, self.meta_data["corpus_len"],
-                                     self.config.index_dir,
-                                     self.config.dataset,
-                                     self.config.prune_weight,
-                                     expert_parallel=False)
+
+    def setup(self):
+        checkpoint_dict = self._load_checkpoint()
+        self._set_up_model(checkpoint_dict)
+        self._sep_up_index()
 
     def _prepare_data(self):
-        tokenizer = BertTokenizer.from_pretrained(self.transformer_model_dir, use_fast=False)
-        self.dataset = BenchmarkQueriesDataset(self.config, tokenizer)
+        transform = HFTransform(self.config.transformer_model_dir, self.config.max_seq_len)
+        self.dataset = CitadelQueryDataset(self.config, transform)
+
         self.encode_loader = DataLoader(
             self.dataset,
             batch_size=1,
-            collate_fn=DataCollatorWithPadding(
-                tokenizer,
-                max_length=self.config.max_seq_len,
-                padding='max_length'
-            ),
             shuffle=False,
             drop_last=False,
-            num_workers=self.config.dataloader_num_workers,
+            num_workers=1,
         )
+
 
     def _retrieve(self):
         self._create_save_path()
-        perf_encode = perf_event.PerfEvent()
-        perf_retrival = perf_event.PerfEvent()
         all_query_match_scores = []
         all_query_inids = []
-        all_perf = []
         for batch in tqdm(self.encode_loader):
             contexts_ids_dict = {}
             with torch.cuda.amp.autocast():
@@ -116,52 +98,61 @@ class CitadelRetrieve:
                         contexts_ids_dict[k] = v.to(self.config.encode_device)
                 batch.data = contexts_ids_dict
                 del contexts_ids_dict
-            perf_encode.startCounters()
+
             queries_repr = self.context_encoder(batch, topk=1, add_cls=True)
-            queries_repr = {k: v.detach().cpu() for k, v in queries_repr.items()}
+            queries_repr = {k: v.detach() for k, v in queries_repr.items()}
             batch_embeddings = []
             batch_weights = []
             batch_cls = []
+
             if "cls_repr" in queries_repr:
                 batch_cls = queries_repr["cls_repr"]
-            embeddings = collections.defaultdict(list)
-            weights = collections.defaultdict(list)
-            for expert_repr, expert_topk_ids, expert_topk_weights, attention_score in zip(queries_repr["expert_repr"][0],
-                                                                                        queries_repr["expert_ids"][0],
-                                                                                        queries_repr["expert_weights"][0],
-                                                                                        queries_repr["attention_mask"][0]):
-                if attention_score > 0:
-                    if len(queries_repr["expert_ids"].shape) == 2:
-                        embeddings[expert_topk_ids.item()].append((expert_topk_weights * expert_repr).to(torch.float32))
-                        weights[expert_topk_ids.item()].append(expert_topk_weights.to(torch.float32))
-                    else:
-                        for expert_id, expert_weight in zip(expert_topk_ids, expert_topk_weights):
-                            if expert_weight > 0:
-                                embeddings[expert_id.item()].append((expert_weight * expert_repr).to(torch.float32))
-                                weights[expert_id.item()].append(expert_weight.to(torch.float32))
-            batch_embeddings.append(embeddings)
-            batch_weights.append(weights)
-            perf_encode.stopCounters()
-            perf_retrival.startCounters()
-            batch_top_scores, batch_top_ids = self.index.search(batch_cls, batch_embeddings, batch_weights, self.topk)
-            perf_retrival.stopCounters()
-            this_perf = create_this_perf(perf_encode, perf_retrival)
-            all_perf.append(this_perf)
 
+            for batch_id in range(1):
+                embeddings = collections.defaultdict(list)
+                weights = collections.defaultdict(list)
+                for expert_repr, expert_topk_ids, expert_topk_weights, attention_score in zip(
+                        queries_repr["expert_repr"][batch_id],
+                        queries_repr["expert_ids"][batch_id],
+                        queries_repr["expert_weights"][batch_id],
+                        queries_repr["attention_mask"][batch_id]):
+                    if attention_score > 0:
+                        if len(queries_repr["expert_ids"].shape) == 2:
+                            embeddings[expert_topk_ids.item()].append(
+                                (expert_topk_weights * expert_repr).to(torch.float32))
+                            weights[expert_topk_ids.item()].append(expert_topk_weights.to(torch.float32))
+                        else:
+                            for expert_id, expert_weight in zip(expert_topk_ids, expert_topk_weights):
+                                if expert_weight > 0:
+                                    embeddings[expert_id.item()].append((expert_weight * expert_repr).to(torch.float16))
+                                    weights[expert_id.item()].append(expert_weight.to(torch.float16))
+                batch_embeddings.append(embeddings)
+                batch_weights.append(weights)
+
+            batch_top_scores, batch_top_ids = self.index.search(batch_cls, batch_embeddings, batch_weights, self.topk)
             all_query_match_scores.append(batch_top_scores)
             all_query_inids.append(batch_top_ids)
-        all_query_match_scores = torch.cat(all_query_match_scores, dim=0)
-        all_query_exids = torch.cat(all_query_inids, dim=0)
-        self._save_perf(all_perf)
+
+
+
+        all_query_match_scores = np.concatenate(all_query_match_scores, axis=0)
+        all_query_exids = np.concatenate(all_query_inids, axis=0)
+
         path = self._save_ranks(all_query_match_scores, all_query_exids)
         return path
 
-    def evaluate(self, path, index_memory):
+    def run(self):
+        self.setup()
+        self._prepare_data()
+        path = self._retrieve()
+        self.evaluate(path)
+
+    def evaluate(self, path, index_memory=None):
         qrels = pd.read_csv(r"{}/{}.csv".format(self.config.label_json_dir, self.config.dataset))
         qrels["query_id"] = qrels["query_id"].astype(str)
         qrels["doc_id"] = qrels["doc_id"].astype(str)
 
-        encode_dataset = BenchmarkDataset(self.config, None)
+        encode_dataset = CitadelDataset(self.config, None)
         new_2_old = list(encode_dataset.corpus.keys())
         rank_results_pd = pd.DataFrame(list(ir_measures.read_trec_run(path)))
         for i, r in rank_results_pd.iterrows():
@@ -171,30 +162,17 @@ class CitadelRetrieve:
         eval_results["prune_weight"] = self.config.prune_weight
         eval_results["index_memory"] = index_memory
         eval_results["index_dlen"] = len(new_2_old)
+        print(eval_results)
         return eval_results
 
 
-    def _save_perf(self, all_perf: list):
-        columns = ["encode_cycles", "encode_instructions",
-                   "encode_L1_misses", "encode_LLC_misses",
-                   "encode_L1_accesses", "encode_LLC_accesses",
-                   "encode_branch_misses", "encode_task_clock",
-                   "retrieval_cycles", "retrieval_instructions",
-                   "retrieval_L1_misses", "retrieval_LLC_misses",
-                   "retrieval_L1_accesses", "retrieval_LLC_accesses",
-                   "retrieval_branch_misses", "retrieval_task_clock"]
-        perf_df = pd.DataFrame(all_perf, columns=columns)
-        perf_df.to_csv(r"{}/prune_weight-{}.citadel_perf.csv".format(self.perf_path,
-                                                                     str(self.config.prune_weight)),
-                                                                        index=False)
-
     def _save_ranks(self, scores, indices):
-
-        path = r"{}/prune_weight-{}.run.gz".format(self.rank_path, str(self.config.prune_weight))
+        path = r"{}/Citadel.run.gz".format(self.rank_path)
         rh = faiss.ResultHeap(scores.shape[0], self.topk)
         if self.device == "cpu":
-            rh.add_result(-scores.numpy(), indices.numpy())
-        elif self.device == "gpu":
+            # rh.add_result(-scores.numpy(), indices.numpy())
+            rh.add_result(-scores, indices)
+        else:
             scores = scores.to("cpu").to(torch.float32)
             indices = indices.to("cpu").to(torch.int64)
             rh.add_result(-scores.numpy(), indices.numpy())
@@ -210,17 +188,3 @@ class CitadelRetrieve:
                 for j in range(len(scores)):
                     fout.write(f'{q_id} 0 {indices[j]} {j} {scores[j]} run\n')
         return path
-
-    def merge_eval(self):
-        pass
-
-    def run(self):
-        self._prepare_data()
-        eval_results = self._retrieve()
-        return eval_results
-
-
-# def merge_eval(eval_results_path):
-#
-#     for file in os.listdir(eval_results_path):
-#         file_path = os.path.join(eval_results_path, file)

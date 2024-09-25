@@ -128,6 +128,7 @@ class CoilRetriever:
                 ivl_maxed_scores = torch.empty(len(shard_scatter_map))
 
                 for j in range(tok_scores.size(0)):
+                    a = tok_scores[j]
                     ivl_maxed_scores.zero_()
                     scatter_max(tok_scores[j], ivl_scatter_map, out=ivl_maxed_scores)
                     match_scores[0].scatter_add_(0, shard_scatter_map, ivl_maxed_scores)

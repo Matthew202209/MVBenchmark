@@ -1,4 +1,6 @@
 import os
+import re
+
 import psutil
 
 
@@ -36,3 +38,8 @@ def colbert_get_folder_size(folder_path, is_colbertv2 = False):
             if os.path.isfile(file_path):
                 total_size += os.path.getsize(file_path)
     return total_size
+
+def count_tokens(text):
+    # 使用正则表达式分割文本为单词列表
+    tokens = re.findall(r'\b\w+\b', text)
+    return len(tokens)
