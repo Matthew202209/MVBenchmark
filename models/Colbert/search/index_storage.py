@@ -252,7 +252,7 @@ class IndexScorer(IndexLoader, CandidateGeneration):
             )
             D_packed = torch.nn.functional.normalize(D_packed.to(torch.float32), p=2, dim=-1)
             D_mask = self.doclens[pids.long()]
-            scores, idxs = colbert_score_packed(Q, D_packed, D_mask, config, use_gpu=self.use_gpu).content_topk(k)
+            scores, idxs = colbert_score_packed(Q, D_packed, D_mask, config, use_gpu=self.use_gpu).topk(k)
             top_scores.append(scores)
             top_pids.append(pids[idxs])
         top_scores = torch.concat(top_scores)

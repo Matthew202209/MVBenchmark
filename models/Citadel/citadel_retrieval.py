@@ -88,7 +88,6 @@ class CitadelRetrieve:
     def _prepare_data(self):
         transform = HFTransform(self.config.transformer_model_dir, self.config.max_seq_len)
         self.dataset = CitadelQueryDataset(self.config, transform)
-
         self.encode_loader = DataLoader(
             self.dataset,
             batch_size=1,
@@ -96,7 +95,6 @@ class CitadelRetrieve:
             drop_last=False,
             num_workers=1,
         )
-
 
     def _retrieve(self):
         self._create_save_path()
@@ -154,8 +152,6 @@ class CitadelRetrieve:
             all_query_match_scores.append(batch_top_scores)
             all_query_inids.append(batch_top_ids)
 
-
-
         all_query_match_scores = np.concatenate(all_query_match_scores, axis=0)
         all_query_exids = np.concatenate(all_query_inids, axis=0)
         self._save_perf(all_perf)
@@ -180,7 +176,7 @@ class CitadelRetrieve:
             rank_results_pd.at[i, "doc_id"] = new_2_old[int(r["doc_id"])]
         eval_results = ir_measures.calc_aggregate(self.config.measure, qrels, rank_results_pd)
 
-        eval_results["parameter"] = (str(self.config.prune_weight))
+        eval_results["parameter"] = (str(self.config.prune_weight),  self.config.content_topk)
         eval_results["prune_weight"] = self.config.prune_weight
         eval_results["content_topk"] = self.config.content_topk
         eval_results["index_memory"] = index_memory
