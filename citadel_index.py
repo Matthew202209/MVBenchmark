@@ -24,7 +24,7 @@ if __name__ == '__main__':
     parser.add_argument("--add_context_id", type=bool, default=False)
     parser.add_argument("--weight_threshold", type=float, default=0)
     parser.add_argument("--content_topk", type=float, default=1)
-    parser.add_argument("--prune_weights_list", type=list, default=[0,0.3,0.6,0.9,1.2,1.5])
+    parser.add_argument("--prune_weights_list", type=list, default=[0.3,0.6,0.9])
     parser.add_argument("--cls_dim", type=float, default=128)
     parser.add_argument("--dim", type=float, default=32)
     parser.add_argument("--sub_vec_dim", type=float, default=4)
@@ -38,9 +38,10 @@ if __name__ == '__main__':
                     "fiqa", "lotte_pooled_dev", "msmarco-passage","nfcorpus",
                     "quora","scidocs", "scifact", "car"]
 
-    for dataset in ["nfcorpus", "antique","arguana"]:
-        for content_topk in [1, 3, 7, 9]:
+    for dataset in ["fiqa"]:
+        for content_topk in [1]:
             args.dataset = dataset
+            args.content_topk = content_topk
             citadel = CitadelIndex(args)
             citadel.setup()
             citadel.run()

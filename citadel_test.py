@@ -30,7 +30,7 @@ if __name__ == '__main__':
     parser.add_argument("--check_point_path", type=str, default=r"./checkpoints/citadel.ckpt")
     parser.add_argument("--device", type=str, default=r"cpu")
     parser.add_argument("--encode_device", type=str, default=r"cpu")
-    parser.add_argument("--content_topk", type=float, default=5)
+    parser.add_argument("--content_topk", type=float, default=1)
     parser.add_argument("--retrieved_topk", type=float, default=30)
 
     parser.add_argument("--add_context_id", type=bool, default=False)
@@ -46,19 +46,19 @@ if __name__ == '__main__':
 
     parser.add_argument("--query_json_dir", type=str, default=r'./data/query')
     parser.add_argument("--label_json_dir", type=str, default=r'./data/label')
-    parser.add_argument("--results_save_to", type=str, default=r'./results_test')
+    parser.add_argument("--results_save_to", type=str, default=r'./results_test1')
     parser.add_argument("--portion", type=int, default=1)
     parser.add_argument("--topk", type=int, default=10)
     parser.add_argument("--measure", type=list, default=[nDCG@10, RR@10, Success@10])
     args = parser.parse_args()
     ######################################
 
-    dataset_list = ["nfcorpus"]
+    dataset_list = ["fiqa"]
     for dataset in dataset_list:
         args.dataset = dataset
         args.corpus_file = r"{}/{}.jsonl".format(args.data_dir, args.dataset)
         print(args.dataset)
-        prune_weights_list = [0,0.3,0.6,0.9,1.2,1.5]
+        prune_weights_list = [0.3, 0.6,0.9]
         eval_list = []
         for prune_weight in prune_weights_list:
             args.prune_weight = str(prune_weight)

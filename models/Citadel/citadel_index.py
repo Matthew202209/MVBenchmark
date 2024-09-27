@@ -6,6 +6,7 @@ import json
 import os
 import pickle
 import shutil
+from copy import deepcopy
 from os import truncate
 import time
 import torch
@@ -36,7 +37,6 @@ class CitadelIndex:
     def run(self):
         batch_results_list, batch_cls_list = self._encode()
         self.save_encode(batch_results_list, batch_cls_list)
-        self.prune_in_diff_weights()
         self.save_metadata()
 
     def save_metadata(self):
@@ -46,9 +46,6 @@ class CitadelIndex:
 
         with open(metadata_file_path, 'w', encoding='utf-8') as json_file:
             json.dump(self.meta_data, json_file, ensure_ascii=False, indent=4)
-
-        
-
 
     def _prepare_data(self):
         transform = HFTransform(self.config.transformer_model_dir, self.config.max_seq_len)
@@ -143,36 +140,36 @@ class CitadelIndex:
         repr_data = torch.cat(repr_data, 0)
         return id_data, weight_data, repr_data
 
-    def prune_in_diff_weights(self):
-        for prune_weight in self.config.prune_weights_list:
-            self._prune(prune_weight)
-        file_path = r"{}/{}/{}/expert_original".format(self.ctx_embeddings_dir,
-                                                       self.config.dataset,self.content_topk)
-        shutil.rmtree(file_path)
+    # def prune_in_diff_weights(self):
+    #     for prune_weight in self.config.prune_weights_list:
+    #         self._prune(prune_weight)
+    #     file_path = r"{}/{}/{}/expert_original".format(self.ctx_embeddings_dir,
+    #                                                    self.config.dataset,self.content_topk)
+    #     shutil.rmtree(file_path)
 
-    def _prune(self, prune_weight):
-        merge_out_dir = r"{}/{}/{}/expert/{}".format(self.ctx_embeddings_dir, self.config.dataset, self.content_topk, prune_weight)
-        print(prune_weight)
-        if not os.path.exists(merge_out_dir):
-            os.makedirs(merge_out_dir)
-        executor = concurrent.futures.ThreadPoolExecutor(max_workers=1000)
-        file_path = r"{}/{}/{}/expert_original".format(self.ctx_embeddings_dir,
-                                                       self.config.dataset, self.content_topk)
-
-
-        for file in os.listdir(file_path):
-            ctx_id, ctx_weight, ctx_repr = self.load_context_expert(file)
-            if len(ctx_id) == 0:
-                continue
-            selected = torch.where(ctx_weight > float(prune_weight))
-            ctx_id = ctx_id[selected]
-            ctx_weight = ctx_weight[selected]
-            ctx_repr = ctx_repr[selected]
-            if len(ctx_id) == 0:
-                continue
-            path = os.path.join(merge_out_dir, file)
-            executor.submit(CitadelIndex.save_file, (path, (ctx_id, ctx_weight, ctx_repr)))
-        executor.shutdown()
+    # def _prune(self, prune_weight):
+    #     merge_out_dir = r"{}/{}/{}/expert/{}".format(self.ctx_embeddings_dir, self.config.dataset, self.content_topk, prune_weight)
+    #     print(prune_weight)
+    #     if not os.path.exists(merge_out_dir):
+    #         os.makedirs(merge_out_dir)
+    #     executor = concurrent.futures.ThreadPoolExecutor(max_workers=1000)
+    #     file_path = r"{}/{}/{}/expert_original".format(self.ctx_embeddings_dir,
+    #                                                    self.config.dataset, self.content_topk)
+    #
+    #
+    #     for file in os.listdir(file_path):
+    #         ctx_id, ctx_weight, ctx_repr = self.load_context_expert(file)
+    #         if len(ctx_id) == 0:
+    #             continue
+    #         selected = torch.where(ctx_weight > float(prune_weight))
+    #         ctx_id = ctx_id[selected]
+    #         ctx_weight = ctx_weight[selected]
+    #         ctx_repr = ctx_repr[selected]
+    #         if len(ctx_id) == 0:
+    #             continue
+    #         path = os.path.join(merge_out_dir, file)
+    #         executor.submit(CitadelIndex.save_file, (path, (ctx_id, ctx_weight, ctx_repr)))
+    #     executor.shutdown()
 
     def save_encode(self, batch_results_list, batch_cls_list):
         def save_file(entry):
@@ -180,19 +177,41 @@ class CitadelIndex:
             with open(path, "wb") as f:
                 pickle.dump(output, f, protocol=4)
 
+        def prune_experts(ids, weights, reprs, prune_weight):
+            if len(ids) == 0:
+                return None
+            selected = torch.where(weights > float(prune_weight))
+            ids = ids[selected]
+            weights = weights[selected]
+            reprs = reprs[selected]
+            if len(ids) == 0:
+                return None
+            return (ids, weights, reprs)
+
         def parallel_write(expert_dict, output_dir):
             os.makedirs(output_dir, exist_ok=True)
-            results = []
-            for k, output in tqdm(expert_dict.items()):
-                ids, weights, reprs = zip(*output)
-                ids = torch.LongTensor(ids)
-                weights = torch.stack(weights, 0).to(torch.float32)
-                reprs = torch.stack(reprs, 0).to(torch.float32)
-                results.append((os.path.join(output_dir, f"{k}.pkl"), (ids, weights, reprs)))
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1500) as executor:
-                for path, output in results:
-                    executor.submit(save_file, (path, output))
+            for prune_weight in self.config.prune_weights_list:
+                print(prune_weight)
+                final_save_dir = r"{}/{}".format(output_dir, str(prune_weight))
+                if not os.path.exists(final_save_dir):
+                    os.makedirs(final_save_dir)
+                results = []
+                for k, output in tqdm(expert_dict.items()):
+                    ids, weights, reprs = zip(*output)
+                    ctx_ids = deepcopy(torch.LongTensor(ids))
+                    ctx_weights = deepcopy(torch.stack(weights, 0).to(torch.float32))
+                    ctx_reprs = deepcopy(torch.stack(reprs, 0).to(torch.float32))
+                    expert_data = prune_experts(ctx_ids, ctx_weights, ctx_reprs, prune_weight)
+                    if expert_data is None:
+                        continue
+                    else:
+                        ids, weights, reprs = expert_data
+                    results.append((os.path.join(final_save_dir, f"{k}.pkl"), (ids, weights, reprs)))
+
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1000) as executor:
+                    for path, output in results:
+                        executor.submit(save_file, (path, output))
 
 
         save_dir = r"{}/{}/{}".format(self.ctx_embeddings_dir, self.config.dataset, self.content_topk)
@@ -216,7 +235,7 @@ class CitadelIndex:
             save_file((cls_out_path, cls_embeddings))
 
         embedding_out_dir = os.path.join(
-            self.ctx_embeddings_dir, self.config.dataset, self.content_topk, f"expert_original")
+            self.ctx_embeddings_dir, self.config.dataset, self.content_topk, f"expert")
         print(f"\nWriting tensors to {embedding_out_dir}")
         parallel_write(expert_embeddings, embedding_out_dir)  # make sure rank 0 waits
 
