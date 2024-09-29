@@ -7,10 +7,10 @@ if __name__ == '__main__':
     parser.add_argument("--root_dir", type=str, default=r"./data/corpus")
     parser.add_argument("--dataset", type=str, default=r"nfcorpus")
     parser.add_argument("--metadata_dir", type=str, default=r"./data/metadata")
-    parser.add_argument("--ctx_embeddings_dir", type=str, default=r"./index/Citadel")
+    parser.add_argument("--ctx_embeddings_dir", type=str, default=r"./index/Citadel_test")
     parser.add_argument("--transformer_model_dir", type=str, default=r"./checkpoints/bert-base-uncased")
 
-    parser.add_argument("--encode_batch_size", type=int, default=16)
+    parser.add_argument("--encode_batch_size", type=int, default=64)
     parser.add_argument("--max_seq_len", type=int, default=300)
     parser.add_argument("--dataloader_num_workers", type=int, default=1)
 
@@ -33,13 +33,16 @@ if __name__ == '__main__':
     parser.add_argument("--threshold", type=int, default=1000)
     parser.add_argument("--num", type=int, default=-1)
 
+    parser.add_argument("--is_parallel", type=bool, default=False)
+    parser.add_argument("--num_threads", type=int, default=20)
+
     args = parser.parse_args()
     dataset_list = ["antique","arguana", "clinicaltrials", "dbpedia-entity",
                     "fiqa", "lotte_pooled_dev", "msmarco-passage","nfcorpus",
                     "quora","scidocs", "scifact", "car"]
 
     for dataset in ["fiqa"]:
-        for content_topk in [1]:
+        for content_topk in [5]:
             args.dataset = dataset
             args.content_topk = content_topk
             citadel = CitadelIndex(args)

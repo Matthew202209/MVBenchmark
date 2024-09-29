@@ -10,12 +10,15 @@ from copy import deepcopy
 from os import truncate
 import time
 import torch
+from torch import nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from models.Citadel.citadel_dataloader import CitadelDataset
 from models.Citadel.citadel_model import CITADELEncoder
 from models.Citadel.citadel_transformer import HFTransform
 from models.Citadel.citadel_utils import process_check_point
+# 设置要使用的 GPU
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 
 
 class CitadelIndex:
@@ -59,6 +62,7 @@ class CitadelIndex:
         )
 
     def _prepare_model(self):
+
         self.context_encoder = CITADELEncoder(model_path=self.config.transformer_model_dir,
                                               dropout=self.config.dropout,
                                               tok_projection_dim=self.config.tok_projection_dim,
@@ -68,12 +72,18 @@ class CitadelIndex:
 
         checkpoint_dict = process_check_point(checkpoint_dict)
         self.context_encoder.load_state_dict(checkpoint_dict)
-        self.context_encoder.to(self.config.device)
+
+        if self.config.is_parallel:
+            self.context_encoder = nn.DataParallel(self.context_encoder).cuda()
+        else:
+            self.context_encoder.to(self.config.device)
 
     def _encode(self):
         batch_results_list = []
         batch_cls_list = []
         start_time = time.time()
+        print("Encoding data...")
+        contexts_repr_list = []
         for batch in tqdm(self.encode_loader):
             corpus_ids = list(batch.data["corpus_ids"][0])
             contexts_ids_dict = {}
@@ -86,7 +96,17 @@ class CitadelIndex:
                     batch.data = contexts_ids_dict
                     del contexts_ids_dict
                     contexts_repr = self.context_encoder(batch, topk=int(self.content_topk), add_cls=True)
-            contexts_repr = {k: v.detach().cpu() for k, v in contexts_repr.items()}
+                    contexts_repr["corpus_ids"] = corpus_ids
+                    contexts_repr["input_ids"]= batch.data["input_ids"]
+     
+            contexts_repr_list.append(contexts_repr)
+        
+        print("Finished encoding.")
+
+        for contexts_repr in tqdm(contexts_repr_list):
+            corpus_ids = contexts_repr["corpus_ids"]
+            input_ids = contexts_repr["input_ids"]
+            contexts_repr = {k: v.detach().cpu() for k, v in contexts_repr.items() if k != "corpus_ids"}
             batch_results = []
             batch_cls = []
             if "cls_repr" in contexts_repr:
@@ -98,7 +118,7 @@ class CitadelIndex:
                         contexts_repr["expert_ids"][batch_id],
                         contexts_repr["expert_weights"][batch_id],
                         contexts_repr["attention_mask"][batch_id],
-                        batch.data["input_ids"][batch_id][1:]):
+                        input_ids[batch_id][1:]):
                     if attention_score > 0:
                         if len(contexts_repr["expert_ids"].shape) == 2:  # COIL and ColBERT
                             if expert_topk_weights > 0:
@@ -115,6 +135,91 @@ class CitadelIndex:
         end_time = time.time()
         self.latency["index_time"] = end_time - start_time
         return batch_results_list, batch_cls_list
+
+    def parallel_encode(self):
+        def process_contexts_repr(contexts_repr_list_segment):
+            batch_results_list = []
+            batch_cls_list = []
+            for contexts_repr in tqdm(contexts_repr_list_segment):
+                corpus_ids = contexts_repr["corpus_ids"]
+                input_ids = contexts_repr["input_ids"]
+                contexts_repr = {k: v.detach().cpu() for k, v in contexts_repr.items() if k != "corpus_ids"}
+                batch_results = []
+
+                batch_cls = contexts_repr["cls_repr"]
+                for batch_id, corpus_id in enumerate(corpus_ids):
+                    results = collections.defaultdict(list)
+                    for expert_repr, expert_topk_ids, expert_topk_weights, attention_score, context_id in zip(
+                            contexts_repr["expert_repr"][batch_id],
+                            contexts_repr["expert_ids"][batch_id],
+                            contexts_repr["expert_weights"][batch_id],
+                            contexts_repr["attention_mask"][batch_id],
+                            input_ids[batch_id][1:]):
+                        if attention_score > 0:
+                            if len(contexts_repr["expert_ids"].shape) == 2:  # COIL and ColBERT
+                                if expert_topk_weights > 0:
+                                    results[expert_topk_ids.item()].append(
+                                        [int(corpus_id), expert_topk_weights, expert_topk_weights * expert_repr])
+                            else:  # CITADEL
+                                
+                                selected = torch.where(expert_topk_weights > float(self.config.weight_threshold))
+                                expert_topk_weights = expert_topk_weights[selected]
+                                expert_topk_ids = expert_topk_ids[selected]
+                                
+                                for expert_id, expert_weight in zip(expert_topk_ids, expert_topk_weights):  
+                                    results[expert_id.item()].append(
+                                        [int(corpus_id), expert_weight, expert_weight * expert_repr])
+                    batch_results.append(results)
+                batch_results_list.append(batch_results)
+                batch_cls_list.append(batch_cls)
+            return batch_results_list, batch_cls_list
+
+        final_batch_results_list = []
+        final_batch_cls_list = []
+
+        start_time = time.time()
+        print("Encoding data...")
+        contexts_repr_list = []
+        for batch in tqdm(self.encode_loader):
+            corpus_ids = list(batch.data["corpus_ids"][0])
+            contexts_ids_dict = {}
+            with torch.cuda.amp.autocast():
+                with torch.no_grad():
+                    for k, v in batch.items():
+                        if k == "corpus_ids":
+                            continue
+                        contexts_ids_dict[k] = v.to(self.config.device)
+                    batch.data = contexts_ids_dict
+                    del contexts_ids_dict
+                    contexts_repr = self.context_encoder(batch, topk=int(self.content_topk), add_cls=True)
+                    contexts_repr["corpus_ids"] = corpus_ids
+                    contexts_repr["input_ids"] = batch.data["input_ids"]
+
+            contexts_repr_list.append(contexts_repr)
+
+        print("Finished encoding.")
+
+        batch_size = len(contexts_repr_list) // self.config.num_threads
+        with concurrent.futures.ThreadPoolExecutor(max_workers= self.config.num_threads) as executor:
+            futures = []
+
+            # 划分列表为多个片段并提交任务
+            for i in range(self.config.num_threads):
+                segment = contexts_repr_list[
+                          i * batch_size:(i + 1) * batch_size] if i <  self.config.num_threads - 1 else contexts_repr_list[
+                                                                                           i * batch_size:]
+                futures.append(executor.submit(process_contexts_repr, segment))
+
+            # 收集结果
+            for future in concurrent.futures.as_completed(futures):
+                batch_results, batch_cls = future.result()
+                final_batch_results_list.extend(batch_results)
+                final_batch_cls_list.extend(batch_cls)
+
+        end_time = time.time()
+        self.latency["index_time"] = end_time - start_time
+        return final_batch_results_list, final_batch_cls_list
+
 
     def load_context_expert(self, expert_file_name):
         def load_file(path):

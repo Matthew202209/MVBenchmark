@@ -21,8 +21,6 @@ class CitadelDataset(Dataset):
         corpus_text = list(self.corpus.values())[item]
         corpus_text = " ".join([self.sep_token, corpus_text])
         ctx_tensors = self.text_transform(corpus_text)
-
-
         ctx_tensors.data["corpus_ids"] = [str(item)]
         return ctx_tensors
 

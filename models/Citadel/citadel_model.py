@@ -51,29 +51,15 @@ class CITADELEncoder(nn.Module):
 
         # router representation
         full_router_repr = torch.log(1 + torch.relu(logits)) * attention_mask.unsqueeze(-1)
-        router_repr = torch.max(full_router_repr, dim=1).values
-        # routing, assign every token to top-k expert
         expert_weights, expert_ids = torch.topk(full_router_repr, dim=2, k=topk)  # B x T x topk
+        del full_router_repr
+
         # expert representation
         expert_repr = self.tok_project(hiddens) * attention_mask.unsqueeze(-1)
-
-        # some training stat.
-        router_mask = torch.zeros_like(full_router_repr)
-        router_mask.scatter_(dim=2, index=expert_ids, src=(expert_weights > 0.).to(expert_weights.dtype))  # B x T x E
-        # average number of experts per input
-        ret["avg_cond_num_experts"] = router_mask.sum(1).sum(1, keepdim=True).mean(0, keepdim=True)
-        # average number of distinct experts per batch
-        ret["avg_marg_num_experts"] = router_mask.sum(1).max(0, keepdim=True).values.sum(1, keepdim=True)
-
-        # for computing load balancing
-        router_softmax_repr = torch.softmax(logits, dim=-1)
-        ret["router_mask"] = router_mask.sum(1).clone()
-        ret["router_softmax_repr"] = router_softmax_repr.sum(1).clone()
         ret["attention_mask"] = attention_mask.clone()
         if add_cls:
             cls_repr = self.cls_project(outputs.hidden_states[-1][:, 0, :])
             ret["cls_repr"] = cls_repr.clone()
-        ret["router_repr"] = router_repr.clone()
         ret["expert_ids"] = expert_ids.clone()
         ret["expert_repr"] = expert_repr.clone()
         ret["expert_weights"] = expert_weights.clone()
