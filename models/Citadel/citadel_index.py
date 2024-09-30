@@ -28,7 +28,7 @@ class CitadelIndex:
         self.ctx_embeddings_dir = config.ctx_embeddings_dir
         self.latency = collections.defaultdict(float)
         self.content_topk = str(config.content_topk)
-        self.num_gpus = torch.cuda.device_count()
+        self.num_gpus = len(config.gpus)
         self.meta_data = None
         self.encode_loader = None
         self.context_encoder = None
@@ -49,16 +49,16 @@ class CitadelIndex:
     def _parallel_encode(self):
         batch_results_list = []
         batch_cls_list = []
-
+        print(self.config.gpus)
         print("Number of GPUs:", self.num_gpus)
         print("Run parallel_encode...")
         processes = []
         manager = mp.Manager()
-        results = manager.list([[] for _ in range(self.num_gpus)])
+        results = manager.list([[] for _ in self.config.gpus])
         start_time = time.time()
         for idx, dataloader in enumerate(self.dataloaders):
             print(idx)
-            device = f'cuda:{idx % self.num_gpus}'  # 分配GPU
+            device = f'cuda:{self.config.gpus[idx]}'  # 分配GPU
             p = mp.Process(target=self._worker, args=(dataloader, device, results, idx))
             p.start()
             processes.append(p)
@@ -101,6 +101,7 @@ class CitadelIndex:
 
 
     def _prepare_parallel_data(self):
+        print(self.num_gpus)
         transform = HFTransform(self.config.transformer_model_dir, self.config.max_seq_len)
         self.dataset = CitadelDataset(self.config, transform)
         self.dataloaders = split_and_load_dataset(self.dataset, num_parts=self.num_gpus,
