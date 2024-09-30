@@ -1,7 +1,7 @@
 import json
 
 import ujson
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, Subset, DataLoader
 from tqdm import tqdm
 
 
@@ -65,3 +65,9 @@ class CitadelQueryDataset(Dataset):
         return ctx_tensors
 
 
+def split_and_load_dataset(dataset, num_parts=4, batch_size= 32):
+    indices = list(range(len(dataset)))
+    split_size = len(dataset) // num_parts
+    subsets = [Subset(dataset, indices[i * split_size: (i + 1) * split_size]) for i in range(num_parts)]
+    data_loaders = [DataLoader(subset, batch_size=batch_size, shuffle=False) for subset in subsets]
+    return data_loaders

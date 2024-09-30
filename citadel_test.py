@@ -58,7 +58,7 @@ if __name__ == '__main__':
         args.dataset = dataset
         args.corpus_file = r"{}/{}.jsonl".format(args.data_dir, args.dataset)
         print(args.dataset)
-        prune_weights_list = [0.3, 0.6, 0.9]
+        prune_weights_list = [0, 0.3, 0.6, 0.9]
         eval_list = []
         for prune_weight in prune_weights_list:
             args.prune_weight = str(prune_weight)

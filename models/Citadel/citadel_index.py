@@ -12,13 +12,13 @@ import time
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
+import torch.multiprocessing as mp
 from tqdm import tqdm
-from models.Citadel.citadel_dataloader import CitadelDataset
+from models.Citadel.citadel_dataloader import CitadelDataset, split_and_load_dataset
 from models.Citadel.citadel_model import CITADELEncoder
 from models.Citadel.citadel_transformer import HFTransform
 from models.Citadel.citadel_utils import process_check_point
 # 设置要使用的 GPU
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 
 
 class CitadelIndex:
@@ -28,19 +28,15 @@ class CitadelIndex:
         self.ctx_embeddings_dir = config.ctx_embeddings_dir
         self.latency = collections.defaultdict(float)
         self.content_topk = str(config.content_topk)
+        self.num_gpus = torch.cuda.device_count()
         self.meta_data = None
         self.encode_loader = None
         self.context_encoder = None
         self.dataset = None
+        self.dataloaders= None
+        self.results = []
 
-    def setup(self):
-        self._prepare_data()
-        self._prepare_model()
 
-    def run(self):
-        batch_results_list, batch_cls_list = self._encode()
-        self.save_encode(batch_results_list, batch_cls_list)
-        self.save_metadata()
 
     def save_metadata(self):
         metadata_file_path = r"{}/{}/metadata.json".format(self.ctx_embeddings_dir, self.config.dataset)
@@ -49,6 +45,93 @@ class CitadelIndex:
 
         with open(metadata_file_path, 'w', encoding='utf-8') as json_file:
             json.dump(self.meta_data, json_file, ensure_ascii=False, indent=4)
+
+    def _parallel_encode(self):
+        batch_results_list = []
+        batch_cls_list = []
+
+        print("Number of GPUs:", self.num_gpus)
+        print("Run parallel_encode...")
+        processes = []
+        manager = mp.Manager()
+        results = manager.list([[] for _ in range(self.num_gpus)])
+        start_time = time.time()
+        for idx, dataloader in enumerate(self.dataloaders):
+            print(idx)
+            device = f'cuda:{idx % self.num_gpus}'  # 分配GPU
+            p = mp.Process(target=self._worker, args=(dataloader, device, results, idx))
+            p.start()
+            processes.append(p)
+
+        for p in tqdm(processes):
+            p.join()
+            
+        contexts_repr_list = []
+        for result in results:
+            contexts_repr_list.extend(result)
+        print("Finished encoding.")
+        for contexts_repr in tqdm(contexts_repr_list):
+            corpus_ids = contexts_repr["corpus_ids"]
+            input_ids = contexts_repr["input_ids"]
+            batch_results = []
+            batch_cls = []
+            if "cls_repr" in contexts_repr:
+                batch_cls = contexts_repr["cls_repr"]
+            for batch_id, corpus_id in enumerate(corpus_ids):
+                results = collections.defaultdict(list)
+                for expert_repr, expert_topk_ids, expert_topk_weights, attention_score, context_id in zip(
+                        contexts_repr["expert_repr"][batch_id],
+                        contexts_repr["expert_ids"][batch_id],
+                        contexts_repr["expert_weights"][batch_id],
+                        contexts_repr["attention_mask"][batch_id],
+                        input_ids[batch_id][1:]):
+                    if attention_score > 0:
+                        selected = expert_topk_weights > float(self.config.weight_threshold)
+                        expert_topk_weights = expert_topk_weights[selected]
+                        expert_topk_ids = expert_topk_ids[selected]
+                        for expert_id, expert_weight in zip(expert_topk_ids, expert_topk_weights):
+                            results[expert_id.item()].append(
+                                [int(corpus_id), expert_weight, expert_weight * expert_repr])
+                batch_results.append(results)
+            batch_results_list.append(batch_results)
+            batch_cls_list.append(batch_cls)
+        end_time = time.time()
+        self.latency["index_time"] = end_time - start_time
+        return batch_results_list, batch_cls_list
+
+
+    def _prepare_parallel_data(self):
+        transform = HFTransform(self.config.transformer_model_dir, self.config.max_seq_len)
+        self.dataset = CitadelDataset(self.config, transform)
+        self.dataloaders = split_and_load_dataset(self.dataset, num_parts=self.num_gpus,
+                                              batch_size=self.config.encode_batch_size)
+
+    def _worker(self, dataloader, device, results, idx):
+        print(device)
+        model = self._prepare_model_parallel(device)  # 初始化模型
+        model.eval()
+        contexts_repr_list = []
+        for batch in tqdm(dataloader):
+            print(idx)
+            corpus_ids = list(batch.data["corpus_ids"][0])
+            contexts_ids_dict = {}
+            with torch.cuda.amp.autocast():
+                with torch.no_grad():
+                    for k, v in batch.items():
+                        if k == "corpus_ids":
+                            continue
+                        contexts_ids_dict[k] = v.to(device)
+                    batch.data = contexts_ids_dict
+                    del contexts_ids_dict
+                    contexts_repr = model(batch, topk=int(self.content_topk), add_cls=True)
+                   
+                    contexts_repr["input_ids"] = batch.data["input_ids"]
+            contexts_repr = {k: v.detach().cpu().numpy() for k, v in contexts_repr.items()}
+            contexts_repr["corpus_ids"] = corpus_ids 
+            contexts_repr_list.append(contexts_repr)
+        results[idx] += contexts_repr_list
+
+
 
     def _prepare_data(self):
         transform = HFTransform(self.config.transformer_model_dir, self.config.max_seq_len)
@@ -60,6 +143,16 @@ class CitadelIndex:
             drop_last=False,
             num_workers=1,
         )
+    def _prepare_model_parallel(self, device):
+        context_encoder = CITADELEncoder(model_path=self.config.transformer_model_dir,
+                                              dropout=self.config.dropout,
+                                              tok_projection_dim=self.config.tok_projection_dim,
+                                              cls_projection_dim=self.config.cls_projection_dim)
+        checkpoint_dict = torch.load(self.config.check_point_path)["state_dict"]
+
+        checkpoint_dict = process_check_point(checkpoint_dict)
+        context_encoder.load_state_dict(checkpoint_dict)
+        return context_encoder.to(device)
 
     def _prepare_model(self):
 
@@ -74,7 +167,7 @@ class CitadelIndex:
         self.context_encoder.load_state_dict(checkpoint_dict)
 
         if self.config.is_parallel:
-            self.context_encoder = nn.DataParallel(self.context_encoder).cuda()
+            self.context_encoder = nn.DataParallel(self.context_encoder.to(self.config.device))
         else:
             self.context_encoder.to(self.config.device)
 
@@ -84,6 +177,7 @@ class CitadelIndex:
         start_time = time.time()
         print("Encoding data...")
         contexts_repr_list = []
+        print("Model device:", next(self.context_encoder.parameters()).device)
         for batch in tqdm(self.encode_loader):
             corpus_ids = list(batch.data["corpus_ids"][0])
             contexts_ids_dict = {}
@@ -106,7 +200,7 @@ class CitadelIndex:
         for contexts_repr in tqdm(contexts_repr_list):
             corpus_ids = contexts_repr["corpus_ids"]
             input_ids = contexts_repr["input_ids"]
-            contexts_repr = {k: v.detach().cpu() for k, v in contexts_repr.items() if k != "corpus_ids"}
+            contexts_repr = {k: v.detach().cpu() for k, v in contexts_repr.items() if k != "corpus_ids" or k != "input_ids"}
             batch_results = []
             batch_cls = []
             if "cls_repr" in contexts_repr:
@@ -161,12 +255,11 @@ class CitadelIndex:
                                     results[expert_topk_ids.item()].append(
                                         [int(corpus_id), expert_topk_weights, expert_topk_weights * expert_repr])
                             else:  # CITADEL
-                                
+
                                 selected = torch.where(expert_topk_weights > float(self.config.weight_threshold))
                                 expert_topk_weights = expert_topk_weights[selected]
                                 expert_topk_ids = expert_topk_ids[selected]
-                                
-                                for expert_id, expert_weight in zip(expert_topk_ids, expert_topk_weights):  
+                                for expert_id, expert_weight in zip(expert_topk_ids, expert_topk_weights):
                                     results[expert_id.item()].append(
                                         [int(corpus_id), expert_weight, expert_weight * expert_repr])
                     batch_results.append(results)
@@ -219,7 +312,23 @@ class CitadelIndex:
         end_time = time.time()
         self.latency["index_time"] = end_time - start_time
         return final_batch_results_list, final_batch_cls_list
+    def setup(self):
+        self._prepare_data()
+        self._prepare_model()
 
+    def run(self):
+        batch_results_list, batch_cls_list = self._encode()
+        self.save_encode(batch_results_list, batch_cls_list)
+        self.save_metadata()
+
+    def parallel_setup(self):
+        self._prepare_parallel_data()
+
+    def parallel_run(self):
+        self.parallel_setup()
+        batch_results_list, batch_cls_list = self._parallel_encode()
+        self.save_encode(batch_results_list, batch_cls_list)
+        self.save_metadata()
 
     def load_context_expert(self, expert_file_name):
         def load_file(path):
@@ -236,7 +345,6 @@ class CitadelIndex:
                                                     expert_file_name)))
         if len(input_paths) == 0:
             return [], [], []
-
         for input_path in input_paths:
             data.append(load_file(input_path))
         id_data, weight_data, repr_data = zip(*data)
@@ -304,7 +412,8 @@ class CitadelIndex:
                 results = []
                 for k, output in tqdm(expert_dict.items()):
                     ids, weights, reprs = zip(*output)
-                    ctx_ids = deepcopy(torch.LongTensor(ids))
+                    ctx_ids = deepcopy(torch.stack(ids, 0).to(torch.float32))
+                    
                     ctx_weights = deepcopy(torch.stack(weights, 0).to(torch.float32))
                     ctx_reprs = deepcopy(torch.stack(reprs, 0).to(torch.float32))
                     expert_data = prune_experts(ctx_ids, ctx_weights, ctx_reprs, prune_weight)
@@ -326,10 +435,15 @@ class CitadelIndex:
         cls_embeddings = []
         for batch_contexts_repr, batch_cls in tqdm(zip(batch_results_list, batch_cls_list)):
             if len(batch_cls) > 0:
+                batch_cls = torch.tensor(batch_cls).to(torch.float32).cpu()
                 cls_embeddings.append(batch_cls)
             for contexts_repr in batch_contexts_repr:
                 for expert_id, res in contexts_repr.items():
-                    expert_embeddings[expert_id].extend(res)
+                    new_res = []
+                    for r in res:
+                        re = [torch.tensor(item).to(torch.float32).cpu() for item in r]
+                        new_res.append(re)
+                    expert_embeddings[expert_id].extend(new_res)
 
 
         if len(cls_embeddings) > 0:
@@ -354,3 +468,6 @@ class CitadelIndex:
         path, output = entry
         with open(path, "wb") as f:
             pickle.dump(output, f, protocol=4)
+
+
+
