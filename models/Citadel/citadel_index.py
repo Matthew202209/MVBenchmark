@@ -84,13 +84,57 @@ class CitadelIndex:
             with open(path, "wb") as f:
                 pickle.dump(output, f, protocol=4)
 
+        def parallel_write(expert_dict, output_dir):
+            results = []
+            for k, output in tqdm(expert_dict.items()):
+                ids, weights, reprs = zip(*output)
+                reprs = np.array(reprs)
+                ids = torch.tensor(deepcopy(ids), dtype=torch.int64)
+                weights = torch.tensor(deepcopy(weights), dtype=torch.float32)
+                reprs = torch.tensor(deepcopy(reprs), dtype=torch.float32)
+                results.append((os.path.join(output_dir, f"{k}.pkl"), (ids, weights, reprs)))
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1000) as executor:
+                for path, output in results:
+                    executor.submit(save_file, (path, output))
+
         cls_repr_list = np.array(cls_repr_list)
         cls_embeddings = torch.tensor(cls_repr_list).to(torch.float32)
+        root_save = os.path.join(
+            self.ctx_embeddings_dir, self.config.dataset)
+        if not os.path.exists(root_save):
+            os.makedirs(root_save)
         cls_out_path = os.path.join(
             self.ctx_embeddings_dir, self.config.dataset, f"cls.pkl")
         print(f"\nWriting tensors to {cls_out_path}")
         save_file((cls_out_path, cls_embeddings))
-        
+
+        for content_topk in self.config.content_topk_list:
+            for prune_weight in self.config.prune_weights_list:
+                print(r"Content_topk:{}; Prune_weight:{}".format(content_topk, prune_weight))
+                expert_embeddings = collections.defaultdict(list)
+                for contexts_repr in tqdm(contexts_repr_list):
+                    for token_idx in range(len(contexts_repr[0])):
+                        corpus_id = contexts_repr[0][token_idx]
+                        expert_id = contexts_repr[1][token_idx][:content_topk]
+                        expert_weight = contexts_repr[2][token_idx][:content_topk]
+                        expert_repr = contexts_repr[3][token_idx]
+                        if np.sum(np.array(expert_weight)) == 0:
+                            continue
+                        for j, this_expert_id in enumerate(expert_id):
+                            if expert_weight[j] <= prune_weight:
+                                continue
+                            expert_set = (corpus_id, expert_weight[j], expert_weight[j] * expert_repr)
+                            expert_embeddings[this_expert_id].append(expert_set)
+                embedding_out_dir = os.path.join(
+                    self.ctx_embeddings_dir, self.config.dataset, str(content_topk), f"expert", str(prune_weight))
+
+                if not os.path.exists(embedding_out_dir):
+                    os.makedirs(embedding_out_dir)
+
+                print(f"\nWriting tensors to {embedding_out_dir}")
+                parallel_write(expert_embeddings, embedding_out_dir)  # make sure rank 0 waits
+
     def _parallel_encode(self):
         batch_results_list = []
         batch_cls_list = []
@@ -172,7 +216,7 @@ class CitadelIndex:
                         contexts_ids_dict[k] = v.to(device)
                     batch.data = contexts_ids_dict
                     del contexts_ids_dict
-                    contexts_repr = model(batch, topk=int(self.content_topk), add_cls=True)
+                    contexts_repr = model(batch, topk=10, add_cls=True)
                     for batch_id, rep in enumerate(contexts_repr["expert_repr"]):
                         corpus_id = int(corpus_ids[batch_id])
                         attention_mask = contexts_repr["attention_mask"][batch_id]
@@ -185,7 +229,6 @@ class CitadelIndex:
                         expert_weights = list(expert_weights[attention_mask].detach().cpu().numpy())
                         corpus_id_list = [corpus_id for _ in range(len(expert_rep))]
                         contexts_repr_list.append((corpus_id_list, expert_ids, expert_weights, expert_rep))
-                        
                     cls_repr_list.append(contexts_repr["cls_repr"].detach().cpu().numpy())
      
         cls_repr_list = np.concatenate(cls_repr_list, axis=0)
@@ -416,6 +459,12 @@ class CitadelIndex:
         batch_results_list, batch_cls_list = self._new_parallel_encode()
         self.new_save_encode(batch_results_list, batch_cls_list)
         self.save_metadata()
+
+    # def parallel_run(self):
+    #     self.parallel_setup()
+    #     batch_results_list, batch_cls_list = self._new_parallel_encode()
+    #     self.new_save_encode(batch_results_list, batch_cls_list)
+    #     self.save_metadata()
 
     def load_context_expert(self, expert_file_name):
         def load_file(path):

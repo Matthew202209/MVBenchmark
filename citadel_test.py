@@ -14,8 +14,8 @@ if __name__ == '__main__':
     parser.add_argument("--dataset", type=str, default=r"antique")
     parser.add_argument("--data_dir", type=str, default=r"./data/corpus")
     parser.add_argument("--queries_dir", type=str, default=r"./data/query")
-    parser.add_argument("--ctx_embeddings_dir", type=str, default=r"./index/Citadel_test")
-    parser.add_argument("--index_dir", type=str, default=r"./index/Citadel_test")
+    parser.add_argument("--ctx_embeddings_dir", type=str, default=r"./index/Citadel_new")
+    parser.add_argument("--index_dir", type=str, default=r"./index/Citadel_new")
 
     parser.add_argument("--transformer_model_dir", type=str, default=r"./checkpoints/bert-base-uncased")
 
@@ -46,14 +46,14 @@ if __name__ == '__main__':
 
     parser.add_argument("--query_json_dir", type=str, default=r'./data/query')
     parser.add_argument("--label_json_dir", type=str, default=r'./data/label')
-    parser.add_argument("--results_save_to", type=str, default=r'./results_test1')
+    parser.add_argument("--results_save_to", type=str, default=r'./results_test2')
     parser.add_argument("--portion", type=int, default=1)
     parser.add_argument("--topk", type=int, default=10)
     parser.add_argument("--measure", type=list, default=[nDCG@10, RR@10, Success@10])
     args = parser.parse_args()
     ######################################
 
-    dataset_list = ["nfcorpus"]
+    dataset_list = ["fiqa"]
     for dataset in dataset_list:
         args.dataset = dataset
         args.corpus_file = r"{}/{}.jsonl".format(args.data_dir, args.dataset)

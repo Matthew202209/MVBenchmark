@@ -25,6 +25,7 @@ if __name__ == '__main__':
     parser.add_argument("--weight_threshold", type=float, default=0)
     parser.add_argument("--content_topk", type=float, default=1)
     parser.add_argument("--prune_weights_list", type=list, default=[0, 0.3, 0.6, 0.9, 1.2])
+    parser.add_argument("--content_topk_list", type=list, default=[5,1,3,7,9])
     parser.add_argument("--cls_dim", type=float, default=128)
     parser.add_argument("--dim", type=float, default=32)
     parser.add_argument("--sub_vec_dim", type=float, default=4)
@@ -42,12 +43,9 @@ if __name__ == '__main__':
                     "fiqa", "lotte_pooled_dev", "msmarco-passage","nfcorpus",
                     "quora","scidocs", "scifact", "car"]
 
-    for dataset in ["small"]:
-        for content_topk in [5,1,3,7,9]:
-            print(content_topk)
-            print("new parallel")
-            print(r"batch_size :{}".format(args.encode_batch_size))
-            args.dataset = dataset
-            args.content_topk = content_topk
-            citadel = CitadelIndex(args)
-            citadel.parallel_run()
+    for dataset in ["fiqa"]:
+        print("new parallel")
+        print(r"batch_size :{}".format(args.encode_batch_size))
+        args.dataset = dataset
+        citadel = CitadelIndex(args)
+        citadel.parallel_run()
