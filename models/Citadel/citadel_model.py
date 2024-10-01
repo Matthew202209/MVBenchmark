@@ -56,6 +56,7 @@ class CITADELEncoder(nn.Module):
 
         # expert representation
         expert_repr = self.tok_project(hiddens) * attention_mask.unsqueeze(-1)
+
         ret["attention_mask"] = attention_mask.clone()
         if add_cls:
             cls_repr = self.cls_project(outputs.hidden_states[-1][:, 0, :])

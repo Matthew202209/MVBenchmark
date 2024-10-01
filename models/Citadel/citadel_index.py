@@ -9,6 +9,8 @@ import shutil
 from copy import deepcopy
 from os import truncate
 import time
+
+import numpy as np
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
@@ -45,7 +47,50 @@ class CitadelIndex:
 
         with open(metadata_file_path, 'w', encoding='utf-8') as json_file:
             json.dump(self.meta_data, json_file, ensure_ascii=False, indent=4)
+            
+    def _new_parallel_encode(self):
+        print(self.config.gpus)
+        print("Number of GPUs:", self.num_gpus)
+        print("Run parallel_encode...")
+        processes = []
+        manager = mp.Manager()
+        results = manager.list([[] for _ in self.config.gpus])
+        start_time = time.time()
+        for idx, dataloader in enumerate(self.dataloaders):
+            print(idx)
+            device = f'cuda:{self.config.gpus[idx]}'  # 分配GPU
+            p = mp.Process(target=self._new_worker, args=(dataloader, device, results, idx))
+            p.start()
+            processes.append(p)
 
+        for p in tqdm(processes):
+            p.join()
+
+        cls_repr_list = []
+        contexts_repr_list = []
+        for result in results:
+            cls_repr_list.extend(result["cls_repr_list"])
+            contexts_repr_list.extend(result["contexts_repr_list"])
+
+        print("Finished encoding.")
+        end_time = time.time()
+        self.latency["index_time"] = end_time - start_time
+        return cls_repr_list, contexts_repr_list
+
+
+    def new_save_encode(self, cls_repr_list, contexts_repr_list):
+        def save_file(entry):
+            path, output = entry
+            with open(path, "wb") as f:
+                pickle.dump(output, f, protocol=4)
+
+        cls_repr_list = np.array(cls_repr_list)
+        cls_embeddings = torch.tensor(cls_repr_list).to(torch.float32)
+        cls_out_path = os.path.join(
+            self.ctx_embeddings_dir, self.config.dataset, f"cls.pkl")
+        print(f"\nWriting tensors to {cls_out_path}")
+        save_file((cls_out_path, cls_embeddings))
+        
     def _parallel_encode(self):
         batch_results_list = []
         batch_cls_list = []
@@ -59,7 +104,7 @@ class CitadelIndex:
         for idx, dataloader in enumerate(self.dataloaders):
             print(idx)
             device = f'cuda:{self.config.gpus[idx]}'  # 分配GPU
-            p = mp.Process(target=self._worker, args=(dataloader, device, results, idx))
+            p = mp.Process(target=self._new_worker, args=(dataloader, device, results, idx))
             p.start()
             processes.append(p)
 
@@ -106,7 +151,49 @@ class CitadelIndex:
         self.dataset = CitadelDataset(self.config, transform)
         self.dataloaders = split_and_load_dataset(self.dataset, num_parts=self.num_gpus,
                                               batch_size=self.config.encode_batch_size)
+        
+    def _new_worker(self, dataloader, device, results, idx):
+        print(device)
+        model = self._prepare_model_parallel(device)  # 初始化模型
+        model.eval()
+        contexts_repr_list = []
+        result = {}
+        cls_repr_list = []
 
+        for batch in tqdm(dataloader):
+            print(idx)
+            corpus_ids = list(batch.data["corpus_ids"][0])
+            contexts_ids_dict = {}
+            with torch.cuda.amp.autocast():
+                with torch.no_grad():
+                    for k, v in batch.items():
+                        if k == "corpus_ids":
+                            continue
+                        contexts_ids_dict[k] = v.to(device)
+                    batch.data = contexts_ids_dict
+                    del contexts_ids_dict
+                    contexts_repr = model(batch, topk=int(self.content_topk), add_cls=True)
+                    for batch_id, rep in enumerate(contexts_repr["expert_repr"]):
+                        corpus_id = int(corpus_ids[batch_id])
+                        attention_mask = contexts_repr["attention_mask"][batch_id]
+                        expert_ids = contexts_repr["expert_ids"][batch_id]
+                        expert_weights = contexts_repr["expert_weights"][batch_id]
+                        # 使用masked_select选择非零元素
+                        attention_mask = attention_mask.bool()
+                        expert_rep = list(rep[attention_mask].detach().cpu().numpy())
+                        expert_ids = list(expert_ids[attention_mask].detach().cpu().numpy())
+                        expert_weights = list(expert_weights[attention_mask].detach().cpu().numpy())
+                        corpus_id_list = [corpus_id for _ in range(len(expert_rep))]
+                        contexts_repr_list.append((corpus_id_list, expert_ids, expert_weights, expert_rep))
+                        
+                    cls_repr_list.append(contexts_repr["cls_repr"].detach().cpu().numpy())
+     
+        cls_repr_list = np.concatenate(cls_repr_list, axis=0)
+        result["cls_repr_list"] = cls_repr_list
+        result["contexts_repr_list"] = contexts_repr_list
+        results[idx] = result
+    
+    
     def _worker(self, dataloader, device, results, idx):
         print(device)
         model = self._prepare_model_parallel(device)  # 初始化模型
@@ -125,7 +212,6 @@ class CitadelIndex:
                     batch.data = contexts_ids_dict
                     del contexts_ids_dict
                     contexts_repr = model(batch, topk=int(self.content_topk), add_cls=True)
-                   
                     contexts_repr["input_ids"] = batch.data["input_ids"]
             contexts_repr = {k: v.detach().cpu().numpy() for k, v in contexts_repr.items()}
             contexts_repr["corpus_ids"] = corpus_ids 
@@ -327,8 +413,8 @@ class CitadelIndex:
 
     def parallel_run(self):
         self.parallel_setup()
-        batch_results_list, batch_cls_list = self._parallel_encode()
-        self.save_encode(batch_results_list, batch_cls_list)
+        batch_results_list, batch_cls_list = self._new_parallel_encode()
+        self.new_save_encode(batch_results_list, batch_cls_list)
         self.save_metadata()
 
     def load_context_expert(self, expert_file_name):
