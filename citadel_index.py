@@ -10,7 +10,7 @@ if __name__ == '__main__':
     parser.add_argument("--ctx_embeddings_dir", type=str, default=r"./index/Citadel_new")
     parser.add_argument("--transformer_model_dir", type=str, default=r"./checkpoints/bert-base-uncased")
 
-    parser.add_argument("--encode_batch_size", type=int, default=2)
+    parser.add_argument("--encode_batch_size", type=int, default=32)
     parser.add_argument("--max_seq_len", type=int, default=300)
     parser.add_argument("--dataloader_num_workers", type=int, default=1)
 
@@ -36,14 +36,14 @@ if __name__ == '__main__':
 
     parser.add_argument("--is_parallel", type=bool, default=True)
     parser.add_argument("--num_threads", type=int, default=20)
-    parser.add_argument("--gpus", type=list, default=["0"])
+    parser.add_argument("--gpus", type=list, default=["0","1"])
 
     args = parser.parse_args()
     dataset_list = ["antique","arguana", "clinicaltrials", "dbpedia-entity",
                     "fiqa", "lotte_pooled_dev", "msmarco-passage","nfcorpus",
                     "quora","scidocs", "scifact", "car"]
 
-    for dataset in ["fiqa"]:
+    for dataset in ["clinicaltrials"]:
         print("new parallel")
         print(r"batch_size :{}".format(args.encode_batch_size))
         args.dataset = dataset

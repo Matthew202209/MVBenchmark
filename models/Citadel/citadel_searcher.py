@@ -6,7 +6,7 @@ import time
 import glob
 import numpy as np
 from tqdm import tqdm
-import torch_scatter
+
 
 class IVFCPUIndex:
     def __init__(self, portion, corpus_len, ctx_embeddings_dir, dataset, content_topk, prune_weight):
@@ -14,6 +14,7 @@ class IVFCPUIndex:
         self.cached_experts = {}
         self.ctx_embeddings_dir = ctx_embeddings_dir
         self.load_context_expert(ctx_embeddings_dir, dataset, content_topk, prune_weight)
+        corpus_len = int(self.ctx_cls.shape[0])
         self.sum_scores = torch.zeros((1, corpus_len,), dtype=torch.float32)
         self.max_scores = torch.zeros((corpus_len,), dtype=torch.float32)
         self.latency = collections.defaultdict(float)

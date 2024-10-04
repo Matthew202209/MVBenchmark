@@ -10,11 +10,12 @@ import torch
 from scipy.sparse import csr_matrix, vstack
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from transformers import DataCollatorWithPadding, BertTokenizer, AutoModelForMaskedLM
-
-from dataset.BenchmarkDataset import BenchmarkDataset
+from transformers import AutoModelForMaskedLM
+from models.SLIM.slim_dataloader import SlimDataset
+from models.SLIM.slim_transformer import HFTransform
 from models.SLIM.slim_encoder import SlimEncoder
 from models.SLIM.slim_utils import process_check_point
+from pyserini.index.lucene import LuceneIndexer
 
 
 class SlimIndex:
@@ -31,31 +32,24 @@ class SlimIndex:
     def setup(self):
         self._prepare_data()
         self._prepare_model()
-        with open(self.vocab_file) as f:
-            lines = f.readlines()
-        self.vocab = []
-        for line in lines:
-            self.vocab.append(line.strip())
+        # with open(self.vocab_file) as f:
+        #     lines = f.readlines()
+        # self.vocab = []
+        # for line in lines:
+        #     self.vocab.append(line.strip())
 
     def run(self):
-        # self._encode()
+        self.build_lucene_index()
+        self.encode_sparse_vector()
         self._compress()
 
-
+    
     def _prepare_data(self):
-        tokenizer = BertTokenizer.from_pretrained(self.transformer_model_dir, use_fast=False)
-
-        self.dataset = BenchmarkDataset(self.config, tokenizer)
-        self.dataset.load_corpus()
-
+        transform = HFTransform(self.config.transformer_model_dir, self.config.max_seq_len)
+        self.dataset = SlimDataset(self.config, transform)
         self.encode_loader = DataLoader(
             self.dataset,
             batch_size=self.config.encode_batch_size,
-            collate_fn=DataCollatorWithPadding(
-                tokenizer,
-                max_length=self.config.max_seq_len,
-                padding='max_length'
-            ),
             shuffle=False,
             drop_last=False,
             num_workers=1,
@@ -71,8 +65,17 @@ class SlimIndex:
 
         self.context_encoder.load_state_dict(checkpoint_dict)
         self.context_encoder.to(self.config.device)
+    
+    def build_lucene_index(self):
+        lucene_index_save_path = r"{}/Slim/{}/lucene_index".format(self.config.index_dir, self.config.dataset)
+        lucene_data = self.dataset.get_lucene_data()
+        indexer = LuceneIndexer(lucene_index_save_path, threads=self.config.threads)
+        indexer.add_batch_dict(lucene_data)
+        indexer.close()
 
-    def _encode(self):
+
+
+    def encode_sparse_vector(self):
         batch_results_list = []
         # batch_sparse_vecs_list = []
         for set_id, batch in enumerate(tqdm(self.encode_loader)):
@@ -95,11 +98,10 @@ class SlimIndex:
             del batch
 
             sparse_weights = contexts_repr["sparse_weights"]
-            expert_ids = contexts_repr["expert_ids"]
-            expert_weights = contexts_repr["expert_weights"]
+            # expert_ids = contexts_repr["expert_ids"]
+            # expert_weights = contexts_repr["expert_weights"]
             attention_mask = contexts_repr["attention_mask"]
             del contexts_repr
-
 
             batch_sparse_vecs = []
             lengths = attention_mask.sum(1)
@@ -108,59 +110,59 @@ class SlimIndex:
             self.save_sparse_vecs(batch_sparse_vecs, set_id)
             del sparse_weights, batch_sparse_vecs
 
-            batch_results = []
-            for batch_id, corpus_id in enumerate(corpus_ids):
-                results = {"id": str(corpus_id), "contents": "", "vector": {}}
-                for position, (expert_topk_ids, expert_topk_weights, attention_score, context_id) in enumerate(
-                        # zip(expert_ids[batch_id],
-                        #     expert_weights[batch_id],
-                        #     attention_mask[batch_id],
-                        #     input_ids.cpu()[batch_id][1:])):
-                        zip(expert_ids[batch_id],
-                            expert_weights[batch_id],
-                            attention_mask[batch_id],
-                            input_ids[batch_id][1:])):
-                    if attention_score > 0:
-                        for expert_id, expert_weight in zip(expert_topk_ids, expert_topk_weights):
-                            if expert_weight > self.weight_threshold:
-                                term = self.vocab[expert_id.item()]
-                                tf = int(expert_weight.item() * 100)
-                                results["vector"][term] = max(tf, results["vector"].get(term, 0))
-                batch_results.append(results)
-                del results
-            self.save_dense_vecs(batch_results, set_id)
-            del batch_results
+            # batch_results = []
+            # for batch_id, corpus_id in enumerate(corpus_ids):
+            #     results = {"id": str(corpus_id), "contents": "", "vector": {}}
+            #     for position, (expert_topk_ids, expert_topk_weights, attention_score, context_id) in enumerate(
+            #             # zip(expert_ids[batch_id],
+            #             #     expert_weights[batch_id],
+            #             #     attention_mask[batch_id],
+            #             #     input_ids.cpu()[batch_id][1:])):
+            #             zip(expert_ids[batch_id],
+            #                 expert_weights[batch_id],
+            #                 attention_mask[batch_id],
+            #                 input_ids[batch_id][1:])):
+            #         if attention_score > 0:
+            #             for expert_id, expert_weight in zip(expert_topk_ids, expert_topk_weights):
+            #                 if expert_weight > self.weight_threshold:
+            #                     term = self.vocab[expert_id.item()]
+            #                     tf = int(expert_weight.item() * 100)
+            #                     results["vector"][term] = max(tf, results["vector"].get(term, 0))
+            #     batch_results.append(results)
+            #     del results
+            # self.save_dense_vecs(batch_results, set_id)
+            # del batch_results
 
 
-    def _prune(self, prune_threshold):
-        prune_out_dir = r"{}/{}/expert/{}".format(self.ctx_embeddings_dir, self.config.dataset, prune_threshold)
-        file_path = r"{}/{}/doc".format(self.ctx_embeddings_dir,
-                                              self.config.dataset)
+    # def _prune(self, prune_threshold):
+    #     prune_out_dir = r"{}/{}/expert/{}".format(self.ctx_embeddings_dir, self.config.dataset, prune_threshold)
+    #     file_path = r"{}/{}/doc".format(self.ctx_embeddings_dir,
+    #                                           self.config.dataset)
 
-        if not os.path.exists(prune_out_dir):
-            os.makedirs(prune_out_dir)
+    #     if not os.path.exists(prune_out_dir):
+    #         os.makedirs(prune_out_dir)
 
-        with open(self.vocab_file) as f:
-            lines = f.readlines()
-        vocab = []
-        for line in lines:
-            vocab.append(line.strip())
+    #     with open(self.vocab_file) as f:
+    #         lines = f.readlines()
+    #     vocab = []
+    #     for line in lines:
+    #         vocab.append(line.strip())
 
-        input_paths = glob.glob(file_path)
-        for i, input_path in tqdm(enumerate(list(input_paths))):
-            results = []
-            with jsonlines.open(input_path) as f:
-                for entry in tqdm(f):
-                    vector = {}
-                    for term, weight in entry["vector"].items():
-                        if weight > int(float(prune_threshold) * 100):
-                            vector[term] = weight
-                    entry["vector"] = vector
-                    entry["contents"] = ""
-                    if len(vector) > 0:
-                        results.append(entry)
-            with jsonlines.open(f'{prune_out_dir}/context_embedding.jsonl', 'w') as writer:
-                writer.write_all(results)
+    #     input_paths = glob.glob(file_path)
+    #     for i, input_path in tqdm(enumerate(list(input_paths))):
+    #         results = []
+    #         with jsonlines.open(input_path) as f:
+    #             for entry in tqdm(f):
+    #                 vector = {}
+    #                 for term, weight in entry["vector"].items():
+    #                     if weight > int(float(prune_threshold) * 100):
+    #                         vector[term] = weight
+    #                 entry["vector"] = vector
+    #                 entry["contents"] = ""
+    #                 if len(vector) > 0:
+    #                     results.append(entry)
+    #         with jsonlines.open(f'{prune_out_dir}/context_embedding.jsonl', 'w') as writer:
+    #             writer.write_all(results)
 
 
     def _compress(self, threshold=0.0):

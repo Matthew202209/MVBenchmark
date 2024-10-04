@@ -16,10 +16,12 @@ class BenchmarkDataset(Dataset):
         with open(corpus_file, encoding='utf-8') as fIn:
             for line in tqdm(fIn, total=num_lines):
                 line = ujson.loads(line)
+
                 if '_id' in line.keys():
                     self.corpus[line.get('_id')] = line.get('text')
                 elif "doc_id" in line.keys():
                     self.corpus[line.get("doc_id")] = line.get("text")
+
 
     def load_corpus(self):
         self._load_corpus()
