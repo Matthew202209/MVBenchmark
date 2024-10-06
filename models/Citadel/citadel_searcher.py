@@ -5,6 +5,8 @@ import torch
 import time
 import glob
 import numpy as np
+import torch_scatter
+
 from tqdm import tqdm
 
 

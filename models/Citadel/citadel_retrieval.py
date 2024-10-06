@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import DataLoader
+
 from torch.utils.hipify.hipify_python import meta_data
 from tqdm import tqdm
 
@@ -180,7 +181,6 @@ class CitadelRetrieve:
         eval_results["prune_weight"] = self.config.prune_weight
         eval_results["content_topk"] = self.config.content_topk
         eval_results["index_memory"] = index_memory
-        eval_results["index_time"] = self.meta_data["index_time"]
         eval_results["num_docs"] = self.meta_data["num_docs"]
         eval_results["avg_num_tokens"] = self.meta_data["avg_num_tokens"]
         eval_results["total_num_tokens"] = self.meta_data["total_num_tokens"]

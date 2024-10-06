@@ -46,20 +46,20 @@ if __name__ == '__main__':
 
     parser.add_argument("--query_json_dir", type=str, default=r'./data/query')
     parser.add_argument("--label_json_dir", type=str, default=r'./data/label')
-    parser.add_argument("--results_save_to", type=str, default=r'./results222')
+    parser.add_argument("--results_save_to", type=str, default=r'/hpc2hdd/JH_DATA/share/wzhao815/PrivateShareGroup/wzhao815_cma/results')
     parser.add_argument("--portion", type=int, default=1)
     parser.add_argument("--topk", type=int, default=10)
     parser.add_argument("--measure", type=list, default=[nDCG@10, RR@10, Success@10])
     args = parser.parse_args()
     ######################################
 
-    dataset_list = ["quora"]
+    dataset_list = ["lotte_pooled_dev"]
     for dataset in dataset_list:
         args.dataset = dataset
         args.corpus_file = r"{}/{}.jsonl".format(args.data_dir, args.dataset)
         print(args.dataset)
         prune_weights_list = [0, 0.3, 0.6, 0.9, 1.2]
-        content_topks_list = [1, 3, 5, 7, 9]
+        content_topks_list = [5]
         eval_list = []
         for content_topk in content_topks_list:
             for prune_weight in prune_weights_list:

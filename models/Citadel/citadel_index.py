@@ -47,8 +47,34 @@ class CitadelIndex:
 
         with open(metadata_file_path, 'w', encoding='utf-8') as json_file:
             json.dump(self.meta_data, json_file, ensure_ascii=False, indent=4)
-            
+
+
+    def save_m(self, cls_repr_list, contexts_repr_list):
+        save_root = r"{}/{}".format(self.ctx_embeddings_dir, self.config.dataset)
+        if not os.path.exists(save_root):
+            os.makedirs(save_root)
+        cls_save_dir = r"{}/{}/cls_m.jsonl".format(self.ctx_embeddings_dir, self.config.dataset)
+        contexts_save_dir = r"{}/{}/context_m.jsonl".format(self.ctx_embeddings_dir, self.config.dataset)
+        with open(cls_save_dir, 'w') as outfile:
+            print(r"Saving m cls_repr_list......")
+            # 写入数组
+            for cls_repr in cls_repr_list:
+                json_line = json.dumps(cls_repr.tolist())
+                # 写入文件，并添加换行符
+                outfile.write(json_line + '\n')
+
+        with open(contexts_save_dir, 'w') as outfile:
+            print(r"Saving m contexts_repr_list......")
+            for contexts_repr in contexts_repr_list:
+                json_line = json.dumps(contexts_repr)
+                outfile.write(json_line + '\n')
+
+
+
+
     def _new_parallel_encode(self):
+
+
         print(self.config.gpus)
         print("Number of GPUs:", self.num_gpus)
         print("Run parallel_encode...")
@@ -75,6 +101,7 @@ class CitadelIndex:
         print("Finished encoding.")
         end_time = time.time()
         self.latency["index_time"] = end_time - start_time
+        self.save_m(cls_repr_list, contexts_repr_list)
         return cls_repr_list, contexts_repr_list
 
 
@@ -116,9 +143,9 @@ class CitadelIndex:
                 for contexts_repr in tqdm(contexts_repr_list):
                     for token_idx in range(len(contexts_repr[0])):
                         corpus_id = contexts_repr[0][token_idx]
-                        expert_id = contexts_repr[1][token_idx][:content_topk]
-                        expert_weight = contexts_repr[2][token_idx][:content_topk]
-                        expert_repr = contexts_repr[3][token_idx]
+                        expert_id = np.array(contexts_repr[1][token_idx][:content_topk])
+                        expert_weight = np.array(contexts_repr[2][token_idx][:content_topk])
+                        expert_repr = np.array(contexts_repr[3][token_idx])
                         if np.sum(np.array(expert_weight)) == 0:
                             continue
                         for j, this_expert_id in enumerate(expert_id):
@@ -224,9 +251,9 @@ class CitadelIndex:
                         expert_weights = contexts_repr["expert_weights"][batch_id]
                         # 使用masked_select选择非零元素
                         attention_mask = attention_mask.bool()
-                        expert_rep = list(rep[attention_mask].detach().cpu().numpy())
-                        expert_ids = list(expert_ids[attention_mask].detach().cpu().numpy())
-                        expert_weights = list(expert_weights[attention_mask].detach().cpu().numpy())
+                        expert_rep = list(rep[attention_mask].detach().cpu().numpy().tolist())
+                        expert_ids = list(expert_ids[attention_mask].detach().cpu().numpy().tolist())
+                        expert_weights = list(expert_weights[attention_mask].detach().cpu().numpy().tolist())
                         corpus_id_list = [corpus_id for _ in range(len(expert_rep))]
                         contexts_repr_list.append((corpus_id_list, expert_ids, expert_weights, expert_rep))
                     cls_repr_list.append(contexts_repr["cls_repr"].detach().cpu().numpy())
@@ -456,8 +483,8 @@ class CitadelIndex:
 
     def parallel_run(self):
         self.parallel_setup()
-        batch_results_list, batch_cls_list = self._new_parallel_encode()
-        self.new_save_encode(batch_results_list, batch_cls_list)
+        cls_repr_list, contexts_repr_list = self._new_parallel_encode()
+        self.new_save_encode(cls_repr_list, contexts_repr_list)
         self.save_metadata()
 
     # def parallel_run(self):

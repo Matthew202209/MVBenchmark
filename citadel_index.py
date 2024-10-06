@@ -4,13 +4,14 @@ from models.Citadel.citadel_index import CitadelIndex
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--root_dir", type=str, default=r"./data/corpus")
+    parser.add_argument("--data_dir", type=str, default=r"./data/corpus")
     parser.add_argument("--dataset", type=str, default=r"nfcorpus")
     parser.add_argument("--metadata_dir", type=str, default=r"./data/metadata")
-    parser.add_argument("--ctx_embeddings_dir", type=str, default=r"./index/Citadel_new")
+    parser.add_argument("--ctx_embeddings_dir", type=str, default=r"/hpc2hdd/JH_DATA/share/wzhao815/PrivateShareGroup/wzhao815_cma/index/Citadel")
+    # parser.add_argument("--ctx_embeddings_dir", type=str, default=r"./index/Citadel_new")
     parser.add_argument("--transformer_model_dir", type=str, default=r"./checkpoints/bert-base-uncased")
 
-    parser.add_argument("--encode_batch_size", type=int, default=32)
+    parser.add_argument("--encode_batch_size", type=int, default=80)
     parser.add_argument("--max_seq_len", type=int, default=300)
     parser.add_argument("--dataloader_num_workers", type=int, default=1)
 
@@ -24,8 +25,8 @@ if __name__ == '__main__':
     parser.add_argument("--add_context_id", type=bool, default=False)
     parser.add_argument("--weight_threshold", type=float, default=0)
     parser.add_argument("--content_topk", type=float, default=1)
-    parser.add_argument("--prune_weights_list", type=list, default=[0, 0.3, 0.6, 0.9, 1.2])
-    parser.add_argument("--content_topk_list", type=list, default=[5,1,3,7,9])
+    parser.add_argument("--prune_weights_list", type=list, default=[0])
+    parser.add_argument("--content_topk_list", type=list, default=[5])
     parser.add_argument("--cls_dim", type=float, default=128)
     parser.add_argument("--dim", type=float, default=32)
     parser.add_argument("--sub_vec_dim", type=float, default=4)
@@ -43,7 +44,7 @@ if __name__ == '__main__':
                     "fiqa", "lotte_pooled_dev", "msmarco-passage","nfcorpus",
                     "quora","scidocs", "scifact", "car"]
 
-    for dataset in ["clinicaltrials"]:
+    for dataset in ["dbpedia-entity"]:
         print("new parallel")
         print(r"batch_size :{}".format(args.encode_batch_size))
         args.dataset = dataset

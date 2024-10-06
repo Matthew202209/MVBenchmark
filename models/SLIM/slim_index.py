@@ -76,15 +76,12 @@ class SlimIndex:
 
 
     def encode_sparse_vector(self):
-        batch_results_list = []
-        # batch_sparse_vecs_list = []
         for set_id, batch in enumerate(tqdm(self.encode_loader)):
             contexts_ids_dict = {}
             with torch.cuda.amp.autocast():
                 with torch.no_grad():
                     for k, v in batch.items():
                         if k == "corpus_ids":
-                            corpus_ids = v
                             continue
                         contexts_ids_dict[k] = v.to(self.config.device)
                 batch.data = contexts_ids_dict
@@ -94,8 +91,8 @@ class SlimIndex:
             # contexts_repr = {k: v.detach().cpu() for k, v in contexts_repr.items() if k != "sparse_weights"}
 
             # take up corpus_ids and input_ids
-            input_ids = batch.data["input_ids"].cpu()
-            del batch
+            # input_ids = batch.data["input_ids"].cpu()
+            # del batch
 
             sparse_weights = contexts_repr["sparse_weights"]
             # expert_ids = contexts_repr["expert_ids"]

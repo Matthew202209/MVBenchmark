@@ -28,7 +28,6 @@ class SlimDataset(Dataset):
         corpus_file = r"{}/{}.jsonl".format(self.config.data_dir, self.config.dataset)
         num_lines = sum(1 for i in open(corpus_file, 'rb'))
         with open(corpus_file, encoding='utf-8') as fIn:
-
             for line in tqdm(fIn, total=num_lines):
                 line = ujson.loads(line)
                 if '_id' in line.keys():

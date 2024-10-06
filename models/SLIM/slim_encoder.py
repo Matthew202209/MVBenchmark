@@ -31,21 +31,24 @@ class SlimEncoder(nn.Module):
 
         # routing, assign every token to top-k expert
         full_router_repr = torch.log(1 + torch.relu(logits)) * attention_mask.unsqueeze(-1)
-        expert_weights, expert_ids = torch.topk(full_router_repr, dim=2, k=topk)  # B x T x topk
+        expert_weights, _ = torch.topk(full_router_repr, dim=2, k=topk)  # B x T x topk
         min_expert_weight = torch.min(expert_weights, -1, True)[0]
         sparse_expert_weights = torch.where(full_router_repr >= min_expert_weight, full_router_repr, 0)
         ret["attention_mask"] = attention_mask.clone()
-        ret["expert_ids"] = expert_ids.clone()
-        ret["expert_weights"] = expert_weights.clone()
+        # ret["expert_ids"] = expert_ids.clone()
+        # ret["expert_weights"] = expert_weights.clone()
         ret["sparse_weights"] = sparse_expert_weights.clone()
         return ret
 
+class QueryEncoder:
+    def encode(self, text, **kwargs):
+        pass
 
-class Slim_query_encoder:
-    def __init__(self, model_name, tokenizer_path, fusion_weight=.99, device='cpu'):
-        self.device = "cpu"
+class SlimQueryEncoder(QueryEncoder):
+    def __init__(self, model_path, tokenizer_path, fusion_weight=.99, device='cpu'):
+        self.device = device
         self.fusion_weight = fusion_weight
-        self.model = AutoModelForMaskedLM.from_pretrained(model_name)
+        self.model = AutoModelForMaskedLM.from_pretrained(model_path)
         self.model.to(self.device)
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
         self.reverse_vocab = {v: k for k, v in self.tokenizer.vocab.items()}
@@ -61,6 +64,7 @@ class Slim_query_encoder:
             max_length=max_length,
             add_special_tokens=True,
         )
+        inputs = {k: v.detach().to(self.device) for k, v in inputs.items()}
         outputs = self.model(**inputs, return_dict=True)
         attention_mask = inputs["attention_mask"][:, 1:] # remove the cls token
         logits = outputs.logits[:, 1:, :] # remove the cls token prediction
@@ -114,3 +118,4 @@ class Slim_query_encoder:
                 _weights[token] = weight_quanted
             to_return.append(_weights)
         return to_return
+

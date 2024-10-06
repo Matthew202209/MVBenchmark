@@ -15,7 +15,7 @@ if __name__ == '__main__':
     parser.add_argument("--transformer_model_dir", type=str, default=r"./checkpoints/bert-base-uncased")
 
     parser.add_argument("--vocab_file", type=str, default=r"./checkpoints/slim/vocab.txt")
-    parser.add_argument("--index_dir", type=str, default=r"./index/Slim")
+    parser.add_argument("--index_dir", type=str, default=r"./index")
     parser.add_argument("--corpus_dir", type=str, default=r"./data/corpus")
     parser.add_argument("--check_point_path", type=str, default=r"/home/chunming/data/chunming/projects/MVBenchmark/checkpoints/slim")
 
@@ -27,9 +27,10 @@ if __name__ == '__main__':
     parser.add_argument("--context_top_k", type=int, default=1)
     parser.add_argument("--threads", type=int, default=10)
     args = parser.parse_args()
-
-
-    si = SlimIndex(args)
-    si.setup()
-    si.run()
+    for dataset in ["antique","arguana", "clinicaltrials", "dbpedia-entity",
+                    "fiqa", "lotte_pooled_dev", "msmarco-passage","nfcorpus",
+                    "quora","scidocs", "scifact"]:
+        si = SlimIndex(args)
+        si.setup()
+        si.build_lucene_index()
 
